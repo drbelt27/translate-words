@@ -7,7 +7,6 @@
       "Read(./.idea/**)",
       "Read(./node_modules/**)",
       "Read(./vendor/**)",
-      "Read(./tests/**)",
       "Read(./test/**)",
       "Read(./coverage/**)",
       "Read(./build/**)",

@@ -198,6 +198,10 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= Version 2.2.1 =
+* Fixed: The language switcher linked the WooCommerce shop page to the home page instead of the translated shop page.
+* Added: WooCommerce integration resolving the shop archive translation URL, also used for the rel="alternate" hreflang tags.
+
 = Version 2.2.0 | 24 August 2026 =
 * Added: Elementor V4 Component Translation support.
 * Improved: Deactivation feedback form.

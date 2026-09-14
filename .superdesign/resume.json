@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "woocommerce-product-translations": {
+      "targetKind": "new-ui",
+      "projectId": "eef5138d-dbd5-4fe5-be7e-18db2a0a1cf5",
+      "activeDraftId": "efe151e0-6edd-41ba-8721-e0a9ed034806",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        ".superdesign/init/components.md",
+        "modules/page-translation/src/popup-setting-modal/header.js"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "1d212231c0dc162b6e770f44be67abf9514a25a7e6a5844e84cede213de2bf88",
+        ".superdesign/init/theme.md": "e81d8e6b7903c91d1b5e29ce79c959fd548dacd055e8aaf9125c107bd2463612",
+        ".superdesign/init/components.md": "65224a096e4be62efcf38ea1399b79410d390d1237e4eb334ce5b64532ddc10f",
+        "modules/page-translation/src/popup-setting-modal/header.js": "4e752dcdee0288e8d6e8800e83db97667885dceb7f4b9f895f9dfa7a40ecab9a"
+      },
+      "components": [],
+      "drafts": {
+        "efe151e0-6edd-41ba-8721-e0a9ed034806": {
+          "title": "Linguator WooCommerce Translation Panel",
+          "visualDirection": "Compact embedded product panel using existing Linguator tokens, with variation rows",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-09-12T09:51:57.508197+00:00"
+    }
+  }
+}
