@@ -1,6 +1,7 @@
 # Shared WooCommerce product identity — Phase 1 design
 
-Status: agreed with the user on 2026-09-15. Not implemented.
+Status: agreed with the user on 2026-09-15; reviewed with the user on 2026-09-15 and amended below.
+Not implemented.
 Baseline: local commit `251aa3c`, Linguator 2.2.0.
 Supersedes the Phase 1 portions of `docs/issue-19-design.md`, which remains the reference for the
 later phases. Upstream issue: [#19](https://github.com/CoolPluginsTeam/translate-words/issues/19).
@@ -61,6 +62,14 @@ overrule the earlier design document, which placed both out of scope.
    field translation out of scope; with a single shared post, a German product page would otherwise
    carry an Italian `<title>` and meta description.
 5. **Shared mode is opt-in and off by default.**
+6. **Product category, tag and brand archives get the language-switch fix in Phase 1.** Making those
+   taxonomies shared takes them out of `is_translated_taxonomy()`, which disables the `is_tax()`
+   branch of `Linguator_Frontend_Links::get_translation_url()`. Without a handler the switcher falls
+   back to the home page on all 14 active categories. Reviewed and moved into scope on 2026-09-15.
+7. **Concurrent-write protection is best-effort in Phase 1.** `revision` catches an editor working
+   from stale data; it is not atomic against two simultaneous writes. Accepted deliberately — see
+   *Concurrency, as actually guaranteed*. Phase 2 hardens it, because bulk translation is what makes
+   the race real.
 
 ## Scope of Phase 1
 
@@ -70,7 +79,8 @@ Translated per language:
 - Variation: description
 - Product-local attributes: attribute label and option labels
 - `product_cat`, `product_tag`, `product_brand`: term name and description
-- SEO: document title, meta description, Open Graph title/description
+- SEO: document title, meta description, Open Graph title/description — entered through the same
+  minimal panel, not through a separate screen
 
 Never translated, ever: product and variation IDs, SKU, price, stock, tax class, dimensions, weight,
 attribute *keys*, attribute *option values*, term IDs, term slugs, order IDs.
@@ -93,12 +103,12 @@ canonical data still gets canonical data.
 
 | File | Responsibility |
 | --- | --- |
-| `integrations/woocommerce/woocommerce.php` | Coordinator: reads the setting, registers adapters. Extends the existing class. |
+| `integrations/woocommerce/woocommerce.php` | Coordinator: reads the setting, registers adapters, and extends the existing `lmat_pre_translation_url` handler to single products and product term archives. Extends the existing class. |
 | `integrations/woocommerce/translated-object-types.php` | Removes products and product taxonomies from Linguator's ordinary translation model while shared mode is on |
 | `integrations/woocommerce/translation-repository.php` | Read and write per-object per-language text; bulk priming; source fingerprints; status; revisions |
 | `integrations/woocommerce/term-translations.php` | The same for term labels and descriptions |
 | `integrations/woocommerce/attribute-translations.php` | Product-local attribute labels and option labels, canonical values untouched |
-| `integrations/woocommerce/frontend.php` | Localized WooCommerce getters, language context, variation JSON and AJAX |
+| `integrations/woocommerce/frontend.php` | Localized WooCommerce getters, the `should_localize()` context gate, language context, variation JSON and AJAX |
 | `integrations/woocommerce/orders.php` | Purchase language and displayed text, frozen at order creation |
 | `integrations/woocommerce/seo.php` | Serves translated title, meta description and Open Graph to the active SEO plugin |
 | `integrations/woocommerce/admin/product-panel.php` + view | Minimal entry metabox |
@@ -139,8 +149,16 @@ map cannot express:
 - **Stale** — `source_hash` no longer matches the current source. Display still shows the translation;
   the admin sees `needs_review`.
 
-`revision` guards concurrent writes: a write carrying a revision older than the stored one is
-rejected rather than merged, so a translation is never silently lost.
+**Concurrency, as actually guaranteed.** `revision` guards a write carrying a revision older than
+the stored one: it is rejected rather than merged. That covers the case Phase 1 actually has — an
+editor who loaded the panel, went away, and saved over someone else's later work.
+
+It is **not** atomic. `update_post_meta()` offers no compare-and-swap, so two writes that read
+revision 7 in the same instant both write revision 8 and the second wins silently. This limitation is
+accepted deliberately: Phase 1 ships a single-editor metabox, where the race needs two humans saving
+the same product in the same language within the same request window. Phase 2 introduces bulk and AI
+translation, which is what makes the race real, and is where a lock belongs. Recorded here so that
+nobody reads `revision` as a stronger promise than it is.
 
 **Bulk priming.** WordPress already loads all post meta for the posts in a `WP_Query` result in one
 query via the meta cache. The repository therefore reads through `get_post_meta()` / `get_term_meta()`
@@ -165,9 +183,25 @@ While shared mode is on:
 - Products therefore stop being filtered by language: one catalogue, every language, same IDs.
 - Product links keep their canonical permalink and receive the current language prefix through
   Linguator's existing links model.
-- The `lmat_pre_translation_url` handler added by the shop switcher fix is extended to single product
-  pages, so switching language on a product stays on that product instead of falling back to the home
-  page. This is the same defect already fixed for the shop archive, on the same surface.
+- The `lmat_pre_translation_url` handler added by the shop switcher fix is extended to **single
+  product pages and to `product_cat` / `product_tag` / `product_brand` archives**, so switching
+  language stays on the same object instead of falling back to the home page. This is the same defect
+  already fixed for the shop archive, on the same surface.
+
+  Both extensions are structurally necessary, not cosmetic. `get_translation_url()` resolves a single
+  post through `$this->model->post->get( $id, $language )`, which needs a **translation post** that a
+  shared product by definition does not have; and it resolves a term archive through its `is_tax()`
+  branch, which is guarded by `is_translated_taxonomy()` and therefore switches off the moment
+  `product_cat` becomes shared. Neither falls through to a usable fallback: a term archive lands in
+  the generic archive branch, where `count_posts()` counts posts *by language* and returns zero for
+  products that no longer carry one, so `lmat_hide_archive_translation_url` suppresses the URL.
+
+- **hreflang follows from the same handler.** The links filter builds its `<link rel="alternate">`
+  set from `get_translation_url()` once per language and prints nothing unless more than one URL
+  resolves. Without the handler above, a shared product page emits **no hreflang at all** while being
+  reachable under four language prefixes. With it, the alternates appear as a by-product and no
+  separate hreflang code is written. A test asserts the four alternates on a product page. This
+  supersedes the claim under *SEO adapter* that hreflang needs no attention here.
 
 ## Rendering
 
@@ -184,6 +218,32 @@ main display context so admin and canonical reads are unaffected.
 
 Requests in the default language take a short path: the repository is not consulted at all.
 
+### The localization context gate
+
+Every filter above — the getters included, not only `the_title` — passes through **one**
+`should_localize()` decision. This is the highest-risk surface in the design, because
+`woocommerce_product_get_name` fires in contexts that have nothing to do with rendering a storefront
+page: the admin product list, REST, cron, WP-CLI, order creation, transactional email, CRM export,
+feeds and `WC_Structured_Data`.
+
+The gate returns false for, at minimum:
+
+| Context | Why |
+| --- | --- |
+| `is_admin()` without a frontend AJAX request | The admin must see canonical text, or an editor renames a product by accident |
+| `REST_REQUEST` | Canonical until Phase 3 exposes translations deliberately |
+| `DOING_CRON`, `WP_CLI` | No viewer, therefore no display language |
+| Order creation and order item generation | The snapshot is written from the **purchase** language, resolved explicitly by `orders.php`, never from ambient context |
+| Transactional email rendering | Emails read the frozen snapshot, not live translations |
+
+The failure this prevents is concrete: if the getter localized during order creation, the text frozen
+into the order would be the language of whoever or whatever triggered the save — an admin, a cron
+job, a webhook — rather than the language the customer bought in. That would corrupt order history
+silently and permanently, which is the one failure mode this design exists to avoid.
+
+Each row of that table gets its own unit test. The gate lives in one method so there is exactly one
+place to audit.
+
 ## Attributes and variations
 
 Product-local attributes carry a canonical name and canonical option values. The integration stores a
@@ -192,9 +252,22 @@ label map beside them and localizes only what is rendered.
 The rule that protects the cart: **translated labels never take part in variation matching.**
 WooCommerce continues to match on canonical option values in the variation form, in
 `woocommerce_available_variation`, in the AJAX `get_variation` response and in `add_to_cart`. The
-localized label is presentation only. A test asserts that a translated label never appears in any
-value attribute, and that a variation selected in German resolves to the same variation ID as in
-Italian.
+localized label is presentation only.
+
+The display side is served by two hooks, which are part of the deliverable and not an afterthought:
+
+- `woocommerce_attribute_label` — the attribute name (`Größe` instead of `Taglia`)
+- `woocommerce_variation_option_name` — the option label inside `wc_get_formatted_variation()`
+
+These matter more than they look. A variation has no name of its own: what the customer reads in the
+cart, at checkout and in the order email is the parent product name plus the formatted attribute
+pairs. Translating only the variation *description*, as the scope list does, would leave a German
+cart showing Italian attribute labels. The attribute label map is therefore what makes the variation
+line read correctly, and its coverage is asserted in the cart and checkout tests, not only on the
+product page.
+
+A test asserts that a translated label never appears in any value attribute, and that a variation
+selected in German resolves to the same variation ID as in Italian.
 
 ## Orders
 
@@ -218,15 +291,26 @@ The adapter is written against one SEO plugin at a time and detects which is act
 one in use on the target site and is the one implemented in Phase 1. Yoast and Rank Math already have
 Linguator integrations and are left alone in this phase.
 
-Canonical URLs and `hreflang` are not touched here: they are produced by the language and links layer,
-which already works, as verified for the shop archive on 2026-09-14.
+Canonical URLs are not touched here: they are produced by the language and links layer.
+
+`hreflang` **is** affected, contrary to an earlier reading of this design. The links layer works for
+the shop archive only because the shop page has a real translated page behind it; a shared product
+has none, and the alternates collapse to a single self link, which the filter declines to print. The
+fix is not in this adapter — it is the `lmat_pre_translation_url` extension described under *Identity
+and query behaviour*, which restores the alternates as a by-product.
 
 ## Minimal entry panel
 
 A metabox on the product edit screen: a language selector, the source text shown read-only beside
-each field, an input per translatable field, and the per-field status. Save writes through the
-repository with the current revision. No AI, no bulk, no rich editing — those are Phase 2, and the
-approved Superdesign draft is that phase's target, not this one.
+each field, an input per translatable field, and the per-field status.
+
+The field set is the whole of the Phase 1 scope, **including the four SEO fields** — document title,
+meta description, Open Graph title and Open Graph description — and the attribute label map. Anything
+Phase 1 renders must be enterable in Phase 1; a translated field with no input is a field that stays
+empty forever.
+
+Save writes through the repository with the current revision. No AI, no bulk, no rich editing —
+those are Phase 2, and the approved Superdesign draft is that phase's target, not this one.
 
 The panel exists so Phase 1 is usable by a human, not to be the final editing experience.
 
@@ -247,12 +331,13 @@ and silently merging two catalogues would be unrecoverable.
 | Translation missing | Source text is displayed, marked internally as a fallback. A page is never empty. |
 | Field intentionally empty | Respected: nothing is displayed. Distinct from missing. |
 | Source text changed | Translation is marked `needs_review` and **keeps being displayed**. Flagging is not hiding: slightly dated German beats a sudden reversion to Italian on a product page. |
-| Concurrent write | Rejected with the current revision reported. Never merged. |
+| Concurrent write, stale revision | Rejected with the current revision reported. Never merged. |
+| Concurrent write, same instant | Last write wins. Known Phase 1 limitation, documented above, closed in Phase 2. |
 | Private or draft product | Visibility is unchanged. A translation never widens access. |
 | WooCommerce inactive | The integration is inert; no fatal error, no data touched. |
 | Shared mode turned off | Translations stay in meta; display returns to canonical; output identical to today. |
 | Existing duplicated catalogue | Activation refused, with the conflicting products named. |
-| Caching | Cache keys include the language; entries are invalidated when a translation or its source is saved. |
+| Caching | No new cache layer. Page cache already varies by language because directory URLs make each language a distinct URL; the repository rides WordPress's meta cache, which WordPress itself invalidates on save. |
 
 ## Testing
 
@@ -262,13 +347,29 @@ WooCommerce stubs, no WordPress install): repository read/write, the three field
 order snapshot payload, the REST meta filtering, and the assertion that canonical values are never
 returned translated.
 
+Added by the 2026-09-15 review, each as a named test rather than an implied one:
+
+- **One test per row of the context gate table** — admin, REST, cron, WP-CLI, order creation, email —
+  each asserting canonical text out.
+- **Translation URL resolution** for a single shared product and for a `product_cat` archive, both
+  returning the prefixed URL of the same object rather than the home page.
+- **hreflang** on a shared product page: four alternates present, one per language.
+- **Cart and checkout line text**: the attribute label and option label are German, while the value
+  carried in the cart item is canonical.
+
 **Integration, on the clone**: the proof that matters is a **complete purchase of a variable product
 in German**, comparing before and after the product and variation counts, IDs, SKUs, prices, stock and
 order references. Then the same purchase in Italian, resolving to the same variation IDs.
 
+The order produced by the German purchase is inspected directly: the frozen item text must be German
+and must have been written from the purchase language, not from whatever context saved the order.
+That single assertion is what the context gate exists for.
+
 **Regression**: the seven-page capture suite built on 2026-09-14, extended with product and category
 pages, run with shared mode off to prove output is unchanged from today, and with it on to prove
-nothing but text differs.
+nothing but text differs. The extended set must include a single product page and a `product_cat`
+archive in both Italian and German, because those two are where the switcher and hreflang changes
+land.
 
 ## Out of scope for Phase 1
 
