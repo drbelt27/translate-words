@@ -104,11 +104,15 @@ canonical data still gets canonical data.
 | File | Responsibility |
 | --- | --- |
 | `integrations/woocommerce/woocommerce.php` | Coordinator: reads the setting, registers adapters, and extends the existing `lmat_pre_translation_url` handler to single products and product term archives. Extends the existing class. |
+| `integrations/woocommerce/shared-mode.php` | Reads the setting and owns the activation guard |
 | `integrations/woocommerce/translated-object-types.php` | Removes products and product taxonomies from Linguator's ordinary translation model while shared mode is on |
 | `integrations/woocommerce/translation-repository.php` | Read and write per-object per-language text; bulk priming; source fingerprints; status; revisions |
 | `integrations/woocommerce/term-translations.php` | The same for term labels and descriptions |
 | `integrations/woocommerce/attribute-translations.php` | Product-local attribute labels and option labels, canonical values untouched |
-| `integrations/woocommerce/frontend.php` | Localized WooCommerce getters, the `should_localize()` context gate, language context, variation JSON and AJAX |
+| `integrations/woocommerce/context-gate.php` | `should_localize()`: the one decision every display filter consults |
+| `integrations/woocommerce/frontend.php` | Localized WooCommerce getters and the language context |
+| `integrations/woocommerce/variations.php` | The variation payload served to the form and to AJAX |
+| `integrations/woocommerce/cart.php` | Meta cache priming for cart and catalogue loops |
 | `integrations/woocommerce/orders.php` | Purchase language and displayed text, frozen at order creation |
 | `integrations/woocommerce/seo.php` | Serves translated title, meta description and Open Graph to the active SEO plugin |
 | `integrations/woocommerce/admin/product-panel.php` + view | Minimal entry metabox |
