@@ -1,6 +1,7 @@
 # Handoff — resume here
 
-Written 2026-09-15, before a machine restart. Read this first, then the two documents it points to.
+Written 2026-09-15 before a machine restart; updated 2026-09-15 after the spec review and the plan.
+Read this first, then the documents it points to.
 
 ## Where the work stands
 
@@ -9,14 +10,17 @@ Two tracks, both about the same WooCommerce integration.
 | Track | State |
 | --- | --- |
 | **WooCommerce shop language switcher** | Done and verified. Pull request [#20](https://github.com/CoolPluginsTeam/translate-words/pull/20) is open upstream. Not merged. Not deployed to production. |
-| **Issue #19, shared product identity, Phase 1** | Design agreed and committed. No code written. The implementation plan is the next thing to produce. |
+| **Issue #19, shared product identity, Phase 1** | Design agreed, reviewed with the user and amended. Implementation plan written and committed. **No plugin code written yet.** Executing the plan is the next thing to do. |
 
 ## Read these, in order
 
-1. `docs/superpowers/specs/2026-09-15-woocommerce-shared-product-identity-phase-1-design.md` — the agreed Phase 1 design. **The user has not reviewed it yet.** That review is the gate before the plan.
-2. `docs/superpowers/root-cause/2026-09-12-woocommerce-shop-switcher.md` — the switcher defect, plus the runtime verification run against the clone.
-3. `docs/superpowers/plans/2026-09-12-linguator-woocommerce-shop-switcher.md` — the plan the switcher fix was built from. Its Task 6 still has the production rollout steps, which have **not** been performed.
-4. `AGENTS.md` — project instructions. Note that `.claude/CLAUDE.md` describes a different plugin and is not a source of truth here.
+1. `docs/superpowers/plans/2026-09-15-woocommerce-shared-product-identity-phase-1.md` — the implementation
+   plan. Seventeen tasks, test-first, each with the code to write. Start here.
+2. `docs/superpowers/specs/2026-09-15-woocommerce-shared-product-identity-phase-1-design.md` — the Phase 1
+   design, reviewed with the user on 2026-09-15 and amended. The plan argues from it.
+3. `docs/superpowers/root-cause/2026-09-12-woocommerce-shop-switcher.md` — the switcher defect, plus the runtime verification run against the clone.
+4. `docs/superpowers/plans/2026-09-12-linguator-woocommerce-shop-switcher.md` — the plan the switcher fix was built from. Its Task 6 still has the production rollout steps, which have **not** been performed.
+5. `AGENTS.md` — project instructions. Note that `.claude/CLAUDE.md` describes a different plugin and is not a source of truth here.
 
 ## Git layout
 
@@ -58,18 +62,31 @@ Agreed with the user on 2026-09-15. The reasoning is in the spec.
 
 ## The next action
 
-Produce the Phase 1 implementation plan with the `superpowers:writing-plans` skill, **after** the
-user has reviewed the spec.
+Execute the plan, starting at Task 1, on `feat/woocommerce-shared-product-identity-phase-1`.
 
-The user asked for one specific ordering, and it should shape the plan:
+The ordering the user asked for is already built into it: the variation and cart matching work comes
+first and ends, at Task 11, in a complete purchase of a variable product in German on the clone,
+before rendering and the panel are built out in full. 44 variable products and 248 variations are on
+the line, and a wrong match means a customer buys the wrong thing.
 
-> Attack the variation and cart matching **first**, with a complete purchase of a variable product in
-> German as the first verifiable milestone — before building the repository, rendering and panel in
-> full.
+### Decided during the 2026-09-15 spec review — do not reopen
 
-The reasoning: 44 variable products and 248 variations are on the line, and a wrong match means a
-customer buys the wrong thing. If the architecture cannot hold that invariant, it is better to find
-out on day two than at the end.
+- **Product category archives are in Phase 1.** Making `product_cat` shared disables the `is_tax()`
+  branch of `get_translation_url()`, so without a handler the switcher sends the visitor to the home
+  page on all 14 active categories.
+- **The revision guard stays best-effort.** It is not atomic; Phase 2 closes it, because bulk
+  translation is what makes the race real.
+- **The settings toggle goes in the React settings screen**, not a WooCommerce settings tab. That
+  carries `npm ci` plus `npm run build` and a rebuilt bundle in the pull request; Task 16 says how to
+  keep that diff contained.
+
+### Found by reading the code during that review
+
+- **hreflang disappears on shared product pages** unless `lmat_pre_translation_url` is extended,
+  because the alternates loop prints nothing when only the self link resolves. Task 13.
+- **The localization context gate is the highest-risk surface.** If a getter localizes during order
+  creation, the wrong language is frozen into order history permanently. Task 5, one test per
+  context.
 
 The invariant itself: **a translated label never takes part in variation matching.** WooCommerce keeps
 matching on canonical option values everywhere — the variation form, `woocommerce_available_variation`,
