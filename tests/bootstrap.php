@@ -24,31 +24,33 @@ $GLOBALS['lmat_test_state'] = array();
  */
 function lmat_test_reset_state() {
 	$GLOBALS['lmat_test_state'] = array(
-		'is_shop'         => false,
-		'is_front_page'   => false,
-		'is_product'      => false,
-		'is_product_tax'  => false,
-		'queried_term'    => null,
-		'shop_page_id'    => -1,
-		'translations'    => array(),
-		'permalinks'      => array(),
-		'unreadable_ids'  => array(),
-		'linguator'       => true,
-		'hooks'           => array(),
-		'post_meta'       => array(),
-		'term_meta'       => array(),
-		'primed_posts'    => array(),
-		'primed_terms'    => array(),
-		'is_admin'        => false,
-		'doing_ajax'      => false,
-		'doing_cron'      => false,
-		'rest_request'    => false,
-		'wp_cli'          => false,
-		'curlang'         => 'it',
-		'default_lang'    => 'it',
-		'languages'       => array( 'it', 'de', 'fr', 'en' ),
-		'options'         => array(),
-		'products'        => array(),
+		'is_shop'           => false,
+		'is_front_page'     => false,
+		'is_product'        => false,
+		'is_product_tax'    => false,
+		'queried_term'      => null,
+		'shop_page_id'      => -1,
+		'translations'      => array(),
+		'permalinks'        => array(),
+		'unreadable_ids'    => array(),
+		'linguator'         => true,
+		'hooks'             => array(),
+		'post_meta'         => array(),
+		'term_meta'         => array(),
+		'primed_posts'      => array(),
+		'primed_terms'      => array(),
+		'is_admin'          => false,
+		'doing_ajax'        => false,
+		'doing_cron'        => false,
+		'rest_request'      => false,
+		'wp_cli'            => false,
+		'curlang'           => 'it',
+		'default_lang'      => 'it',
+		'languages'         => array( 'it', 'de', 'fr', 'en' ),
+		'options'           => array(),
+		'products'          => array(),
+		'product_ids'       => array(),
+		'post_translations' => array(),
 	);
 }
 
@@ -226,14 +228,43 @@ function lmat_test_set_meta( $store, $id, $key, $value ) {
 	return true;
 }
 
+/**
+ * Simulates WordPress's get_post_meta().
+ *
+ * @since 2.3.0
+ *
+ * @param int    $id     Post ID.
+ * @param string $key    Meta key.
+ * @param bool   $single Whether to return a single value.
+ * @return mixed
+ */
 function get_post_meta( $id, $key = '', $single = false ) {
 	return lmat_test_get_meta( 'post_meta', $id, $key, $single );
 }
 
+/**
+ * Simulates WordPress's update_post_meta().
+ *
+ * @since 2.3.0
+ *
+ * @param int    $id    Post ID.
+ * @param string $key   Meta key.
+ * @param mixed  $value Meta value.
+ * @return true
+ */
 function update_post_meta( $id, $key, $value ) {
 	return lmat_test_set_meta( 'post_meta', $id, $key, $value );
 }
 
+/**
+ * Simulates WordPress's delete_post_meta().
+ *
+ * @since 2.3.0
+ *
+ * @param int    $id  Post ID.
+ * @param string $key Meta key.
+ * @return true
+ */
 function delete_post_meta( $id, $key ) {
 	$meta = (array) lmat_test_get( 'post_meta', array() );
 	unset( $meta[ (int) $id ][ $key ] );
@@ -242,14 +273,43 @@ function delete_post_meta( $id, $key ) {
 	return true;
 }
 
+/**
+ * Simulates WordPress's get_term_meta().
+ *
+ * @since 2.3.0
+ *
+ * @param int    $id     Term ID.
+ * @param string $key    Meta key.
+ * @param bool   $single Whether to return a single value.
+ * @return mixed
+ */
 function get_term_meta( $id, $key = '', $single = false ) {
 	return lmat_test_get_meta( 'term_meta', $id, $key, $single );
 }
 
+/**
+ * Simulates WordPress's update_term_meta().
+ *
+ * @since 2.3.0
+ *
+ * @param int    $id    Term ID.
+ * @param string $key   Meta key.
+ * @param mixed  $value Meta value.
+ * @return true
+ */
 function update_term_meta( $id, $key, $value ) {
 	return lmat_test_set_meta( 'term_meta', $id, $key, $value );
 }
 
+/**
+ * Simulates WordPress's delete_term_meta().
+ *
+ * @since 2.3.0
+ *
+ * @param int    $id  Term ID.
+ * @param string $key Meta key.
+ * @return true
+ */
 function delete_term_meta( $id, $key ) {
 	$meta = (array) lmat_test_get( 'term_meta', array() );
 	unset( $meta[ (int) $id ][ $key ] );
@@ -258,78 +318,220 @@ function delete_term_meta( $id, $key ) {
 	return true;
 }
 
+/**
+ * Simulates WordPress's update_postmeta_cache(), recording which post IDs were primed.
+ *
+ * @since 2.3.0
+ *
+ * @param int[] $ids Post IDs.
+ * @return true
+ */
 function update_postmeta_cache( $ids ) {
 	lmat_test_set( 'primed_posts', array_merge( (array) lmat_test_get( 'primed_posts', array() ), array_map( 'intval', (array) $ids ) ) );
 
 	return true;
 }
 
+/**
+ * Simulates WordPress's update_termmeta_cache(), recording which term IDs were primed.
+ *
+ * @since 2.3.0
+ *
+ * @param int[] $ids Term IDs.
+ * @return true
+ */
 function update_termmeta_cache( $ids ) {
 	lmat_test_set( 'primed_terms', array_merge( (array) lmat_test_get( 'primed_terms', array() ), array_map( 'intval', (array) $ids ) ) );
 
 	return true;
 }
 
+/**
+ * Simulates WordPress's is_admin().
+ *
+ * @since 2.3.0
+ *
+ * @return bool
+ */
 function is_admin() {
 	return (bool) lmat_test_get( 'is_admin', false );
 }
 
+/**
+ * Simulates WordPress's wp_doing_ajax().
+ *
+ * @since 2.3.0
+ *
+ * @return bool
+ */
 function wp_doing_ajax() {
 	return (bool) lmat_test_get( 'doing_ajax', false );
 }
 
+/**
+ * Simulates WordPress's wp_doing_cron().
+ *
+ * @since 2.3.0
+ *
+ * @return bool
+ */
 function wp_doing_cron() {
 	return (bool) lmat_test_get( 'doing_cron', false );
 }
 
+/**
+ * Simulates WooCommerce's is_product().
+ *
+ * @since 2.3.0
+ *
+ * @return bool
+ */
 function is_product() {
 	return (bool) lmat_test_get( 'is_product', false );
 }
 
+/**
+ * Simulates WordPress's __(), returning the string unchanged.
+ *
+ * @since 2.3.0
+ *
+ * @param string $text   Text to translate.
+ * @param string $domain Text domain.
+ * @return string
+ */
 function __( $text, $domain = 'default' ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
 	return $text;
 }
 
+/**
+ * Simulates WordPress's esc_html__(), returning the string unchanged.
+ *
+ * @since 2.3.0
+ *
+ * @param string $text   Text to translate.
+ * @param string $domain Text domain.
+ * @return string
+ */
 function esc_html__( $text, $domain = 'default' ) {
 	return $text;
 }
 
+/**
+ * Simulates WordPress's esc_html(), returning the string unchanged.
+ *
+ * @since 2.3.0
+ *
+ * @param string $text Text to escape.
+ * @return string
+ */
 function esc_html( $text ) {
 	return $text;
 }
 
+/**
+ * Simulates WordPress's esc_attr(), returning the string unchanged.
+ *
+ * @since 2.3.0
+ *
+ * @param string $text Text to escape.
+ * @return string
+ */
 function esc_attr( $text ) {
 	return $text;
 }
 
+/**
+ * Simulates WordPress's esc_url(), returning the URL unchanged.
+ *
+ * @since 2.3.0
+ *
+ * @param string $url URL to escape.
+ * @return string
+ */
 function esc_url( $url ) {
 	return $url;
 }
 
+/**
+ * Simulates WordPress's sanitize_key().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key Key to sanitize.
+ * @return string
+ */
 function sanitize_key( $key ) {
 	return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $key ) );
 }
 
+/**
+ * Simulates WordPress's sanitize_title().
+ *
+ * @since 2.3.0
+ *
+ * @param string $title Title to sanitize.
+ * @return string
+ */
 function sanitize_title( $title ) {
 	return trim( preg_replace( '/[^a-z0-9]+/', '-', strtolower( (string) $title ) ), '-' );
 }
 
+/**
+ * Simulates WordPress's sanitize_text_field().
+ *
+ * @since 2.3.0
+ *
+ * @param string $text Text to sanitize.
+ * @return string
+ */
 function sanitize_text_field( $text ) {
 	return trim( wp_strip_all_tags( (string) $text ) );
 }
 
+/**
+ * Simulates WordPress's wp_strip_all_tags().
+ *
+ * @since 2.3.0
+ *
+ * @param string $text Text to strip.
+ * @return string
+ */
 function wp_strip_all_tags( $text ) {
 	return strip_tags( (string) $text );
 }
 
+/**
+ * Simulates WordPress's wp_kses_post(), returning the value unchanged.
+ *
+ * @since 2.3.0
+ *
+ * @param string $value Value to filter.
+ * @return string
+ */
 function wp_kses_post( $value ) {
 	return $value;
 }
 
+/**
+ * Simulates WordPress's wp_unslash().
+ *
+ * @since 2.3.0
+ *
+ * @param mixed $value Value to unslash.
+ * @return mixed
+ */
 function wp_unslash( $value ) {
 	return is_string( $value ) ? stripslashes( $value ) : $value;
 }
 
+/**
+ * Simulates WordPress's absint().
+ *
+ * @since 2.3.0
+ *
+ * @param mixed $value Value to cast.
+ * @return int
+ */
 function absint( $value ) {
 	return abs( (int) $value );
 }
@@ -661,4 +863,31 @@ if ( ! getenv( 'LMAT_TEST_WITHOUT_WOOCOMMERCE' ) ) {
 	}
 }
 
+/**
+ * Simulates WordPress's get_posts(), returning the simulated product catalogue.
+ *
+ * @since 2.3.0
+ *
+ * @param array $args Query arguments, unused by the stub.
+ * @return int[]
+ */
+function get_posts( $args = array() ) {
+	return (array) lmat_test_get( 'product_ids', array() );
+}
+
+/**
+ * Simulates Linguator's translation group lookup for a post.
+ *
+ * @since 2.3.0
+ *
+ * @param int $post_id Post ID.
+ * @return int[] Translations, keyed by language slug.
+ */
+function linguator_get_post_translations( $post_id ) {
+	$translations = (array) lmat_test_get( 'post_translations', array() );
+
+	return isset( $translations[ (int) $post_id ] ) ? $translations[ (int) $post_id ] : array();
+}
+
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
