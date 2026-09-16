@@ -302,5 +302,8 @@ class Shop_Translation_Url_Test extends TestCase {
 		$this->assertSame( 15, $hooks[0]['priority'] );
 		$this->assertSame( 2, $hooks[0]['accepted_args'] );
 		$this->assertSame( array( $this->integration, 'shop_translation_url' ), $hooks[0]['callback'] );
+		$this->assertSame( 'lmat_wc_shared_identity_guard', $hooks[1]['hook'] );
+		$this->assertSame( 10, $hooks[1]['priority'] );
+		$this->assertSame( 1, $hooks[1]['accepted_args'] );
 	}
 }
