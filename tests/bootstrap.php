@@ -945,6 +945,7 @@ class Lmat_Test_REST_Response {
 	}
 }
 
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/context-gate.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-repository.php';

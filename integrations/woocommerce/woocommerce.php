@@ -31,6 +31,15 @@ class Linguator_WooCommerce {
 	protected $repository = null;
 
 	/**
+	 * The localization context gate.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Context_Gate|null
+	 */
+	protected $gate = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -70,6 +79,9 @@ class Linguator_WooCommerce {
 
 		add_filter( 'woocommerce_rest_prepare_product_object', array( $this->repository, 'filter_rest_meta' ), 10, 3 );
 		add_filter( 'woocommerce_rest_prepare_product_variation_object', array( $this->repository, 'filter_rest_meta' ), 10, 3 );
+
+		$this->gate = new Context_Gate();
+		$this->gate->init();
 	}
 
 	/**
