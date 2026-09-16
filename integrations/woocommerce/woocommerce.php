@@ -24,6 +24,10 @@ class Linguator_WooCommerce {
 	/**
 	 * Setups filters.
 	 *
+	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
+	 * That is early enough for `lmat_get_post_types`: Linguator caches the post type list only
+	 * once `after_setup_theme` has fired, which is after `plugins_loaded` has completed.
+	 *
 	 * @since 2.2.1
 	 *
 	 * @return void
@@ -31,6 +35,29 @@ class Linguator_WooCommerce {
 	public function init() {
 		// Priority 15: after the core handler of Linguator_Frontend_Static_Pages (10) and before its customizer override (20).
 		add_filter( 'lmat_pre_translation_url', array( $this, 'shop_translation_url' ), 15, 2 );
+
+		// Always registered: this is what decides whether shared mode may be switched on at all.
+		add_filter( 'lmat_wc_shared_identity_guard', array( Shared_Mode::class, 'guard' ), 10, 1 );
+
+		if ( ! Shared_Mode::is_enabled() ) {
+			return; // Everything below changes behaviour; with shared mode off the integration does only what it did before.
+		}
+
+		$this->register_shared_mode();
+	}
+
+	/**
+	 * Registers the adapters that shared product identity needs.
+	 *
+	 * Each adapter is added here in its own task; the method exists from the start so that the
+	 * gate between "shared mode off" and "shared mode on" has exactly one home.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return void
+	 */
+	protected function register_shared_mode() {
+		// Adapters are registered from Task 6 onwards.
 	}
 
 	/**

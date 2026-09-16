@@ -295,7 +295,9 @@ class Shop_Translation_Url_Test extends TestCase {
 
 		$hooks = lmat_test_get( 'hooks', array() );
 
-		$this->assertCount( 1, $hooks );
+		// Since Linguator 2.3.0, init() also always registers the shared product identity
+		// activation guard; see Coordinator_Test for that behaviour.
+		$this->assertCount( 2, $hooks );
 		$this->assertSame( 'lmat_pre_translation_url', $hooks[0]['hook'] );
 		$this->assertSame( 15, $hooks[0]['priority'] );
 		$this->assertSame( 2, $hooks[0]['accepted_args'] );

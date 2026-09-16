@@ -20,6 +20,7 @@ add_action(
 			return;
 		}
 
+		require_once __DIR__ . '/shared-mode.php';
 		require_once __DIR__ . '/woocommerce.php';
 
 		add_action( 'lmat_init', array( Linguator_Integrations::instance()->woocommerce = new Linguator_WooCommerce(), 'init' ) );
