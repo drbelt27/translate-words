@@ -8,6 +8,31 @@
 use PHPUnit\Framework\TestCase;
 use Linguator\Integrations\woocommerce\Translation_Repository;
 
+/**
+ * Minimal object-shaped meta entry, mirroring WooCommerce's WC_Meta_Data.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Meta_Data {
+	/**
+	 * Meta key.
+	 *
+	 * @var string
+	 */
+	public $key;
+
+	/**
+	 * Constructor.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $key Meta key.
+	 */
+	public function __construct( $key ) {
+		$this->key = $key;
+	}
+}
+
 class Translation_Repository_Test extends TestCase {
 
 	/**
@@ -184,5 +209,26 @@ class Translation_Repository_Test extends TestCase {
 
 		$this->assertCount( 1, $filtered->data['meta_data'] );
 		$this->assertSame( '_sku_extra', $filtered->data['meta_data'][0]['key'] );
+	}
+
+	/**
+	 * WooCommerce populates meta_data with objects, not arrays; that shape must be filtered too.
+	 *
+	 * @return void
+	 */
+	public function test_rest_meta_is_filtered_out_for_object_shaped_entries() {
+		$response = new Lmat_Test_REST_Response(
+			array(
+				'meta_data' => array(
+					new Lmat_Test_Meta_Data( '_lmat_wc_i18n_de' ),
+					new Lmat_Test_Meta_Data( '_sku_extra' ),
+				),
+			)
+		);
+
+		$filtered = $this->repository->filter_rest_meta( $response, null, null );
+
+		$this->assertCount( 1, $filtered->data['meta_data'] );
+		$this->assertSame( '_sku_extra', $filtered->data['meta_data'][0]->key );
 	}
 }

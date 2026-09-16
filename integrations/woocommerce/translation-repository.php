@@ -59,6 +59,10 @@ class Translation_Repository {
 	 *
 	 * Always returns the full shape, so callers never have to test for a missing record.
 	 *
+	 * A field's status is not part of the stored shape: it is derived at read time by get_status()
+	 * from the field's source_hash against the current source, and is deliberately never persisted,
+	 * so there is nothing here that could go stale and be trusted by mistake.
+	 *
 	 * @since 2.3.0
 	 *
 	 * @param int    $object_id Post or term ID.
@@ -163,7 +167,6 @@ class Translation_Repository {
 			$record['fields'][ $field ] = array(
 				'value'       => isset( $data['value'] ) ? (string) $data['value'] : '',
 				'source_hash' => self::hash( isset( $data['source'] ) ? $data['source'] : '' ),
-				'status'      => self::STATUS_TRANSLATED,
 			);
 		}
 
