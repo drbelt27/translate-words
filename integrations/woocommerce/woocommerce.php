@@ -22,6 +22,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Linguator_WooCommerce {
 
 	/**
+	 * Translation storage.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Translation_Repository|null
+	 */
+	protected $repository = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -57,7 +66,10 @@ class Linguator_WooCommerce {
 	 * @return void
 	 */
 	protected function register_shared_mode() {
-		// Adapters are registered from Task 6 onwards.
+		$this->repository = new Translation_Repository();
+
+		add_filter( 'woocommerce_rest_prepare_product_object', array( $this->repository, 'filter_rest_meta' ), 10, 3 );
+		add_filter( 'woocommerce_rest_prepare_product_variation_object', array( $this->repository, 'filter_rest_meta' ), 10, 3 );
 	}
 
 	/**

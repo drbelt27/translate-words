@@ -755,25 +755,63 @@ class Lmat_Test_Product {
 	 */
 	protected $type;
 
+	/**
+	 * Constructor.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param int    $id        Product ID.
+	 * @param string $type      Product type.
+	 * @param int    $parent_id Parent product ID, 0 for a top-level product.
+	 */
 	public function __construct( $id, $type = 'simple', $parent_id = 0 ) {
 		$this->id        = (int) $id;
 		$this->type      = $type;
 		$this->parent_id = (int) $parent_id;
 	}
 
+	/**
+	 * Returns the product ID.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return int
+	 */
 	public function get_id() {
 		return $this->id;
 	}
 
+	/**
+	 * Returns the parent product ID.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return int
+	 */
 	public function get_parent_id() {
 		return $this->parent_id;
 	}
 
+	/**
+	 * Returns the product type.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return string
+	 */
 	public function get_type() {
 		return $this->type;
 	}
 }
 
+/**
+ * Simulates WooCommerce's wc_get_product().
+ *
+ * @since 2.3.0
+ *
+ * @param int $id Product ID.
+ * @return Lmat_Test_Product|false
+ */
 function wc_get_product( $id ) {
 	$products = (array) lmat_test_get( 'products', array() );
 
@@ -889,5 +927,24 @@ function linguator_get_post_translations( $post_id ) {
 	return isset( $translations[ (int) $post_id ] ) ? $translations[ (int) $post_id ] : array();
 }
 
+/**
+ * Minimal WP_REST_Response stand-in.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_REST_Response {
+	/**
+	 * Response payload.
+	 *
+	 * @var array
+	 */
+	public $data;
+
+	public function __construct( $data = array() ) {
+		$this->data = $data;
+	}
+}
+
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-repository.php';
