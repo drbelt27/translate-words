@@ -24,14 +24,31 @@ $GLOBALS['lmat_test_state'] = array();
  */
 function lmat_test_reset_state() {
 	$GLOBALS['lmat_test_state'] = array(
-		'is_shop'        => false,
-		'is_front_page'  => false,
-		'shop_page_id'   => -1,
-		'translations'   => array(),
-		'permalinks'     => array(),
-		'unreadable_ids' => array(),
-		'linguator'      => true,
-		'hooks'          => array(),
+		'is_shop'         => false,
+		'is_front_page'   => false,
+		'is_product'      => false,
+		'is_product_tax'  => false,
+		'queried_term'    => null,
+		'shop_page_id'    => -1,
+		'translations'    => array(),
+		'permalinks'      => array(),
+		'unreadable_ids'  => array(),
+		'linguator'       => true,
+		'hooks'           => array(),
+		'post_meta'       => array(),
+		'term_meta'       => array(),
+		'primed_posts'    => array(),
+		'primed_terms'    => array(),
+		'is_admin'        => false,
+		'doing_ajax'      => false,
+		'doing_cron'      => false,
+		'rest_request'    => false,
+		'wp_cli'          => false,
+		'curlang'         => 'it',
+		'default_lang'    => 'it',
+		'languages'       => array( 'it', 'de', 'fr', 'en' ),
+		'options'         => array(),
+		'products'        => array(),
 	);
 }
 
@@ -98,6 +115,280 @@ function add_filter( $hook_name, $callback, $priority = 10, $accepted_args = 1 )
  */
 function add_action( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) {
 	return add_filter( $hook_name, $callback, $priority, $accepted_args );
+}
+
+/**
+ * Runs the callbacks registered for a hook, in priority order.
+ *
+ * @since 2.3.0
+ *
+ * @param string $hook_name Hook name.
+ * @param mixed  $value     Value to filter.
+ * @return mixed
+ */
+function apply_filters( $hook_name, $value ) {
+	$args      = array_slice( func_get_args(), 2 );
+	$callbacks = array();
+
+	foreach ( (array) lmat_test_get( 'hooks', array() ) as $index => $hook ) {
+		if ( $hook['hook'] === $hook_name ) {
+			$callbacks[] = array( 'priority' => $hook['priority'], 'index' => $index, 'hook' => $hook );
+		}
+	}
+
+	usort(
+		$callbacks,
+		function ( $a, $b ) {
+			return $a['priority'] === $b['priority'] ? $a['index'] - $b['index'] : $a['priority'] - $b['priority'];
+		}
+	);
+
+	foreach ( $callbacks as $callback ) {
+		$accepted = max( 1, (int) $callback['hook']['accepted_args'] );
+		$passed   = array_merge( array( $value ), $args );
+		$value    = call_user_func_array( $callback['hook']['callback'], array_slice( $passed, 0, $accepted ) );
+	}
+
+	return $value;
+}
+
+/**
+ * Runs the callbacks registered for an action.
+ *
+ * @since 2.3.0
+ *
+ * @param string $hook_name Hook name.
+ * @return void
+ */
+function do_action( $hook_name ) {
+	$args = array_slice( func_get_args(), 1 );
+	array_unshift( $args, $hook_name, null );
+	call_user_func_array( 'apply_filters', $args );
+}
+
+/**
+ * Tells whether a hook has the given callback registered.
+ *
+ * @since 2.3.0
+ *
+ * @param string $hook_name Hook name.
+ * @param mixed  $callback  Callback to look for, false for any.
+ * @return bool
+ */
+function has_filter( $hook_name, $callback = false ) {
+	foreach ( (array) lmat_test_get( 'hooks', array() ) as $hook ) {
+		if ( $hook['hook'] === $hook_name && ( false === $callback || $hook['callback'] === $callback ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Reads one simulated meta value.
+ *
+ * @since 2.3.0
+ *
+ * @param string $store  State key of the meta store.
+ * @param int    $id     Object ID.
+ * @param string $key    Meta key.
+ * @param bool   $single Whether to return a single value.
+ * @return mixed
+ */
+function lmat_test_get_meta( $store, $id, $key, $single ) {
+	$meta = (array) lmat_test_get( $store, array() );
+
+	if ( ! isset( $meta[ (int) $id ][ $key ] ) ) {
+		return $single ? '' : array();
+	}
+
+	return $single ? $meta[ (int) $id ][ $key ] : array( $meta[ (int) $id ][ $key ] );
+}
+
+/**
+ * Writes one simulated meta value.
+ *
+ * @since 2.3.0
+ *
+ * @param string $store State key of the meta store.
+ * @param int    $id    Object ID.
+ * @param string $key   Meta key.
+ * @param mixed  $value Meta value.
+ * @return true
+ */
+function lmat_test_set_meta( $store, $id, $key, $value ) {
+	$meta = (array) lmat_test_get( $store, array() );
+
+	$meta[ (int) $id ][ $key ] = $value;
+	lmat_test_set( $store, $meta );
+
+	return true;
+}
+
+function get_post_meta( $id, $key = '', $single = false ) {
+	return lmat_test_get_meta( 'post_meta', $id, $key, $single );
+}
+
+function update_post_meta( $id, $key, $value ) {
+	return lmat_test_set_meta( 'post_meta', $id, $key, $value );
+}
+
+function delete_post_meta( $id, $key ) {
+	$meta = (array) lmat_test_get( 'post_meta', array() );
+	unset( $meta[ (int) $id ][ $key ] );
+	lmat_test_set( 'post_meta', $meta );
+
+	return true;
+}
+
+function get_term_meta( $id, $key = '', $single = false ) {
+	return lmat_test_get_meta( 'term_meta', $id, $key, $single );
+}
+
+function update_term_meta( $id, $key, $value ) {
+	return lmat_test_set_meta( 'term_meta', $id, $key, $value );
+}
+
+function delete_term_meta( $id, $key ) {
+	$meta = (array) lmat_test_get( 'term_meta', array() );
+	unset( $meta[ (int) $id ][ $key ] );
+	lmat_test_set( 'term_meta', $meta );
+
+	return true;
+}
+
+function update_postmeta_cache( $ids ) {
+	lmat_test_set( 'primed_posts', array_merge( (array) lmat_test_get( 'primed_posts', array() ), array_map( 'intval', (array) $ids ) ) );
+
+	return true;
+}
+
+function update_termmeta_cache( $ids ) {
+	lmat_test_set( 'primed_terms', array_merge( (array) lmat_test_get( 'primed_terms', array() ), array_map( 'intval', (array) $ids ) ) );
+
+	return true;
+}
+
+function is_admin() {
+	return (bool) lmat_test_get( 'is_admin', false );
+}
+
+function wp_doing_ajax() {
+	return (bool) lmat_test_get( 'doing_ajax', false );
+}
+
+function wp_doing_cron() {
+	return (bool) lmat_test_get( 'doing_cron', false );
+}
+
+function is_product() {
+	return (bool) lmat_test_get( 'is_product', false );
+}
+
+function __( $text, $domain = 'default' ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
+	return $text;
+}
+
+function esc_html__( $text, $domain = 'default' ) {
+	return $text;
+}
+
+function esc_html( $text ) {
+	return $text;
+}
+
+function esc_attr( $text ) {
+	return $text;
+}
+
+function esc_url( $url ) {
+	return $url;
+}
+
+function sanitize_key( $key ) {
+	return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $key ) );
+}
+
+function sanitize_title( $title ) {
+	return trim( preg_replace( '/[^a-z0-9]+/', '-', strtolower( (string) $title ) ), '-' );
+}
+
+function sanitize_text_field( $text ) {
+	return trim( wp_strip_all_tags( (string) $text ) );
+}
+
+function wp_strip_all_tags( $text ) {
+	return strip_tags( (string) $text );
+}
+
+function wp_kses_post( $value ) {
+	return $value;
+}
+
+function wp_unslash( $value ) {
+	return is_string( $value ) ? stripslashes( $value ) : $value;
+}
+
+function absint( $value ) {
+	return abs( (int) $value );
+}
+
+/**
+ * Minimal WP_Error stand-in.
+ *
+ * @since 2.3.0
+ */
+class WP_Error {
+	/**
+	 * Error codes mapped to their messages.
+	 *
+	 * @var array
+	 */
+	protected $errors = array();
+
+	/**
+	 * Error data, keyed by code.
+	 *
+	 * @var array
+	 */
+	protected $error_data = array();
+
+	public function __construct( $code = '', $message = '', $data = '' ) {
+		if ( '' !== $code ) {
+			$this->errors[ $code ][] = $message;
+
+			if ( '' !== $data ) {
+				$this->error_data[ $code ] = $data;
+			}
+		}
+	}
+
+	public function get_error_code() {
+		$codes = array_keys( $this->errors );
+
+		return empty( $codes ) ? '' : $codes[0];
+	}
+
+	public function get_error_message( $code = '' ) {
+		$code = '' === $code ? $this->get_error_code() : $code;
+
+		return isset( $this->errors[ $code ][0] ) ? $this->errors[ $code ][0] : '';
+	}
+
+	public function get_error_data( $code = '' ) {
+		$code = '' === $code ? $this->get_error_code() : $code;
+
+		return isset( $this->error_data[ $code ] ) ? $this->error_data[ $code ] : null;
+	}
+
+	public function has_errors() {
+		return ! empty( $this->errors );
+	}
+}
+
+function is_wp_error( $thing ) {
+	return $thing instanceof WP_Error;
 }
 
 /**
@@ -185,6 +476,109 @@ class Lmat_Test_Model {
 }
 
 /**
+ * Language stub.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Language {
+	/**
+	 * Language slug.
+	 *
+	 * @var string
+	 */
+	public $slug;
+
+	public function __construct( $slug ) {
+		$this->slug = $slug;
+	}
+
+	public function get_locale( $filter = 'raw' ) {
+		return $this->slug . '_' . strtoupper( $this->slug );
+	}
+}
+
+/**
+ * Links model stub: directory URL mode, default language prefix hidden.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Links_Model {
+	public function remove_language_from_link( $url ) {
+		foreach ( (array) lmat_test_get( 'languages', array() ) as $slug ) {
+			$url = str_replace( '/' . $slug . '/', '/', $url );
+		}
+
+		return $url;
+	}
+
+	public function add_language_to_link( $url, $language ) {
+		$slug = is_object( $language ) ? $language->slug : (string) $language;
+
+		if ( $slug === lmat_test_get( 'default_lang', 'it' ) ) {
+			return $url;
+		}
+
+		return preg_replace( '#^(https?://[^/]+)/#', '${1}/' . $slug . '/', $url );
+	}
+
+	public function switch_language_in_link( $url, $language ) {
+		return $this->add_language_to_link( $this->remove_language_from_link( $url ), $language );
+	}
+}
+
+/**
+ * Product stub exposing only what the integration calls.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Product {
+	/**
+	 * Product ID.
+	 *
+	 * @var int
+	 */
+	protected $id;
+
+	/**
+	 * Parent product ID, 0 for a top-level product.
+	 *
+	 * @var int
+	 */
+	protected $parent_id;
+
+	/**
+	 * Product type.
+	 *
+	 * @var string
+	 */
+	protected $type;
+
+	public function __construct( $id, $type = 'simple', $parent_id = 0 ) {
+		$this->id        = (int) $id;
+		$this->type      = $type;
+		$this->parent_id = (int) $parent_id;
+	}
+
+	public function get_id() {
+		return $this->id;
+	}
+
+	public function get_parent_id() {
+		return $this->parent_id;
+	}
+
+	public function get_type() {
+		return $this->type;
+	}
+}
+
+function wc_get_product( $id ) {
+	$products = (array) lmat_test_get( 'products', array() );
+
+	return isset( $products[ (int) $id ] ) ? $products[ (int) $id ] : false;
+}
+
+/**
  * Linguator instance stub.
  *
  * @since 2.2.1
@@ -198,12 +592,36 @@ class Lmat_Test_Linguator {
 	public $model;
 
 	/**
+	 * Plugin options.
+	 *
+	 * @var ArrayObject
+	 */
+	public $options;
+
+	/**
+	 * Current language.
+	 *
+	 * @var Lmat_Test_Language
+	 */
+	public $curlang;
+
+	/**
+	 * Links model.
+	 *
+	 * @var Lmat_Test_Links_Model
+	 */
+	public $links_model;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 2.2.1
 	 */
 	public function __construct() {
-		$this->model = new Lmat_Test_Model();
+		$this->model       = new Lmat_Test_Model();
+		$this->options     = new ArrayObject( (array) lmat_test_get( 'options', array() ) );
+		$this->curlang     = new Lmat_Test_Language( (string) lmat_test_get( 'curlang', 'it' ) );
+		$this->links_model = new Lmat_Test_Links_Model();
 	}
 }
 
