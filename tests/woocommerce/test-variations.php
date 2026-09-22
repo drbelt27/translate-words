@@ -43,6 +43,13 @@ class Variations_Test extends TestCase {
 	protected $payload;
 
 	/**
+	 * The localization context gate, kept accessible so tests can suspend it.
+	 *
+	 * @var Context_Gate
+	 */
+	protected $gate;
+
+	/**
 	 * Resets the simulated request before each test.
 	 *
 	 * @return void
@@ -52,10 +59,10 @@ class Variations_Test extends TestCase {
 		lmat_test_reset_state();
 		$_REQUEST         = array();
 		$this->repository = new Translation_Repository();
-		$gate             = new Context_Gate();
-		$frontend         = new Frontend( $this->repository, $gate );
-		$this->variations = new Variations( $this->repository, $gate, $frontend );
-		$this->attributes = new Attribute_Translations( $this->repository, $gate, $frontend );
+		$this->gate       = new Context_Gate();
+		$frontend         = new Frontend( $this->repository, $this->gate );
+		$this->variations = new Variations( $this->repository, $this->gate, $frontend );
+		$this->attributes = new Attribute_Translations( $this->repository, $this->gate, $frontend );
 
 		$this->repository->save(
 			42,
@@ -135,6 +142,25 @@ class Variations_Test extends TestCase {
 
 		$this->assertSame( $italian['variation_id'], $german['variation_id'] );
 		$this->assertSame( $italian['attributes'], $german['attributes'] );
+	}
+
+	/**
+	 * A suspended gate reads canonical description even though a German translation exists and German
+	 * is not the default language. This is the path order emails and the admin rely on: if the
+	 * `should_localize()` check were ever dropped from `available_variation()`, this would be the only test
+	 * that catches translated text leaking into a suspended context.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return void
+	 */
+	public function test_suspended_gate_reads_canonical_text() {
+		lmat_test_set( 'curlang', 'de' );
+		$this->gate->suspend( Context_Gate::CONTEXT_EMAIL );
+
+		$data = $this->variations->available_variation( $this->payload, new Lmat_Test_Product( 42, 'variable' ), new Lmat_Test_Product( 77, 'variation', 42 ) );
+
+		$this->assertSame( 'Variante IT', $data['variation_description'] );
 	}
 
 	/**

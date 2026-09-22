@@ -27,6 +27,13 @@ class Frontend_Test extends TestCase {
 	protected $frontend;
 
 	/**
+	 * The localization context gate, kept accessible so tests can suspend it.
+	 *
+	 * @var Context_Gate
+	 */
+	protected $gate;
+
+	/**
 	 * Resets the simulated request before each test.
 	 *
 	 * @return void
@@ -36,7 +43,8 @@ class Frontend_Test extends TestCase {
 		lmat_test_reset_state();
 		$_REQUEST         = array();
 		$this->repository = new Translation_Repository();
-		$this->frontend   = new Frontend( $this->repository, new Context_Gate() );
+		$this->gate       = new Context_Gate();
+		$this->frontend   = new Frontend( $this->repository, $this->gate );
 
 		$this->repository->save(
 			42,
@@ -91,6 +99,23 @@ class Frontend_Test extends TestCase {
 	public function test_admin_reads_canonical_text() {
 		lmat_test_set( 'curlang', 'de' );
 		lmat_test_set( 'is_admin', true );
+
+		$this->assertSame( 'Tassa di socio', $this->frontend->product_name( 'Tassa di socio', new Lmat_Test_Product( 42 ) ) );
+	}
+
+	/**
+	 * A suspended gate reads canonical text even though a German translation exists and German
+	 * is not the default language. This is the path order emails and the admin rely on: if the
+	 * `should_localize()` check were ever dropped from `localize()`, this would be the only test
+	 * that catches translated text leaking into a suspended context.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return void
+	 */
+	public function test_suspended_gate_reads_canonical_text() {
+		lmat_test_set( 'curlang', 'de' );
+		$this->gate->suspend( Context_Gate::CONTEXT_EMAIL );
 
 		$this->assertSame( 'Tassa di socio', $this->frontend->product_name( 'Tassa di socio', new Lmat_Test_Product( 42 ) ) );
 	}
