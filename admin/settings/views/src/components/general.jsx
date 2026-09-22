@@ -34,6 +34,7 @@ const General = ({ data, setData }) => {
     const [selectedLanguageSwitchers, setSelectedLanguageSwitchers] = useState(data.lmat_language_switcher_options || ['default']); // Selected Language Switcher options
     const [showTerms, setShowTerms] = useState(false); // For showing/hiding terms box
     const [menuSyncVisibility, setMenuSyncVisibility] = useState(data.menu_sync_visibility !== undefined ? data.menu_sync_visibility : false); // For Menu Sync feature visibility
+    const [sharedProductIdentity, setSharedProductIdentity] = useState(data.wc_shared_product_identity !== undefined ? data.wc_shared_product_identity : false); // For shared WooCommerce product identity
 
 
     //make the Domains in a suitable way to view
@@ -65,7 +66,8 @@ const General = ({ data, setData }) => {
             selectedPostTypes: true,
             selectedTaxonomies: true,
             selectedLanguageSwitchers: true,
-            menuSyncVisibility: true
+            menuSyncVisibility: true,
+            sharedProductIdentity: true
         }
         // Only include lmatFeedbackData in the checker if the setting is available
         if (data.lmat_feedback_data !== undefined) {
@@ -102,6 +104,11 @@ const General = ({ data, setData }) => {
         const menuSyncBackendValue = data.menu_sync_visibility !== undefined ? data.menu_sync_visibility : false;
         if (menuSyncVisibility !== menuSyncBackendValue) {
             sameChecker.menuSyncVisibility = false
+        }
+
+        const sharedIdentityBackendValue = data.wc_shared_product_identity !== undefined ? data.wc_shared_product_identity : false;
+        if (sharedProductIdentity !== sharedIdentityBackendValue) {
+            sameChecker.sharedProductIdentity = false
         }
         for (const value of previousDomains.current) {
             if (!domains.includes(value) || previousDomains.current.length != domains.length) {
@@ -166,7 +173,7 @@ const General = ({ data, setData }) => {
         if (flag) {
             setHandleButtonDisabled(true)
         }
-    }, [browser, mediaSupport, hideDefault, forceLang, rewrite, domains, selectedSynchronization, selectedPostTypes, selectedTaxonomies, lmatFeedbackData, selectedLanguageSwitchers, menuSyncVisibility])
+    }, [browser, mediaSupport, hideDefault, forceLang, rewrite, domains, selectedSynchronization, selectedPostTypes, selectedTaxonomies, lmatFeedbackData, selectedLanguageSwitchers, menuSyncVisibility, sharedProductIdentity])
 
     //Make the post types and taxonomies from  posttype->posttype_name   to {value: postype ,label:posttype_name (posttype)}
     useEffect(() => {
@@ -361,6 +368,7 @@ const General = ({ data, setData }) => {
                     post_types: selectedPostTypes,
                     taxonomies: selectedTaxonomies,
                     menu_sync_visibility: menuSyncVisibility,
+                    wc_shared_product_identity: sharedProductIdentity,
                 }
                 
                 
@@ -380,6 +388,7 @@ const General = ({ data, setData }) => {
                     post_types: selectedPostTypes,
                     taxonomies: selectedTaxonomies,
                     menu_sync_visibility: menuSyncVisibility,
+                    wc_shared_product_identity: sharedProductIdentity,
                 }
                 
                 // Only include lmat_feedback_data if the setting is available
@@ -878,8 +887,33 @@ const General = ({ data, setData }) => {
                         />
                     </Container.Item>
                 </div>
-                
-                
+
+                <hr className="w-full border-b-0 border-x-0 border-t border-solid border-t-border-subtle" />
+                {/* Shared WooCommerce product identity */}
+                <div className='switcher'>
+                    <Container.Item>
+                        <h3 className='flex items-center gap-2'>
+                            <Share2 className="flex-shrink-0 size-5 text-icon-secondary" />
+                            {__('Shared WooCommerce product identity', 'translate-words')}
+                        </h3>
+                        <p>
+                            {__('Keep one product across all languages: one product ID, SKU, price and stock, with only the text translated. Cannot be enabled while translated products already exist.', 'translate-words')}
+                        </p>
+                    </Container.Item>
+                    <Container.Item className='flex items-center justify-end' style={{paddingRight: '30%'}}>
+                        <Switch
+                            aria-label="Switch Element"
+                            id="wc-shared-product-identity"
+                            onChange={() => {
+                                setSharedProductIdentity(!sharedProductIdentity)
+                            }}
+                            size="sm"
+                            value={sharedProductIdentity}
+                        />
+                    </Container.Item>
+                </div>
+
+
                 {data.lmat_feedback_data !== undefined && (
                     <>
                         <hr className="w-full border-b-0 border-x-0 border-t border-solid border-t-border-subtle" />
