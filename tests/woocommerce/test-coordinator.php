@@ -189,6 +189,22 @@ class Coordinator_Test extends TestCase {
 	}
 
 	/**
+	 * With shared mode on, the canonical redirect guard is wired in too: a regression that dropped
+	 * `keep_shared_object_url_from_redirecting()` from register_shared_mode() would silently bring
+	 * back core's 301 away from every language-prefixed shared product and term archive URL.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_canonical_redirect_guard() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'redirect_canonical', array( $integration, 'keep_shared_object_url_from_redirecting' ) ) );
+	}
+
+	/**
 	 * With shared mode on, translated SEO meta is wired in too: a regression that dropped
 	 * `$this->seo->init()` from register_shared_mode() would defeat translated titles and meta
 	 * descriptions on shared products and product term archives silently.

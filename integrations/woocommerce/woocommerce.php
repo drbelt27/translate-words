@@ -198,6 +198,12 @@ class Linguator_WooCommerce {
 		// Same priority as the shop handler: each stands aside when another has already resolved a URL.
 		add_filter( 'lmat_pre_translation_url', array( $this, 'product_translation_url' ), 15, 2 );
 		add_filter( 'lmat_pre_translation_url', array( $this, 'term_archive_translation_url' ), 15, 2 );
+
+		// A shared product has no language-prefixed permalink of its own (see product_translation_url()
+		// above), so WordPress core's own canonical check disagrees with the language-prefixed URL this
+		// integration advertises through the switcher and hreflang, and 301s it away. Cancel exactly that
+		// redirect; every other reason redirect_canonical() might fire is left alone.
+		add_filter( 'redirect_canonical', array( $this, 'keep_shared_object_url_from_redirecting' ), 10, 2 );
 	}
 
 	/**
@@ -337,6 +343,84 @@ class Linguator_WooCommerce {
 	 */
 	protected function can_resolve_shared_url( $language ) {
 		return is_object( $language ) && ! empty( $language->slug ) && Shared_Mode::is_enabled();
+	}
+
+	/**
+	 * Cancels WordPress core's canonical redirect for a shared product or shared product taxonomy
+	 * archive requested under a language prefix.
+	 *
+	 * A shared product's own permalink (`get_permalink()`) never carries a language prefix, because
+	 * `product` stopped being a translated post type in Task 6. Requesting the language-prefixed URL
+	 * this integration itself advertises (via product_translation_url(), term_archive_translation_url()
+	 * and the resulting hreflang alternates) still resolves to that same product or term archive, but
+	 * WordPress core's `redirect_canonical()` (wp-includes/canonical.php) disagrees with the requested
+	 * URL and 301s the visitor back to the bare permalink, in the default language.
+	 *
+	 * This does not touch `redirect_canonical()`'s many other jobs: www/non-www normalization, feed and
+	 * paging cleanup, attachment redirects, trailing slash and date archive corrections, and 404 guessing
+	 * for everything else are all untouched, because the guard below only fires for a product or a shared
+	 * product taxonomy archive requested under a prefix Linguator itself recognizes as a language.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string|false $redirect_url  The redirect URL core computed, or false when it found none.
+	 * @param string       $requested_url The originally requested URL.
+	 * @return string|false $redirect_url unchanged, or false to cancel the redirect.
+	 */
+	public function keep_shared_object_url_from_redirecting( $redirect_url, $requested_url ) {
+		if ( ! Shared_Mode::is_enabled() ) {
+			return $redirect_url;
+		}
+
+		if ( ! $this->is_shared_object_request() ) {
+			return $redirect_url;
+		}
+
+		if ( '' === $this->known_language_prefix( (string) $requested_url ) ) {
+			return $redirect_url;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Tells whether the current request displays a shared product or a shared product taxonomy archive.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return bool
+	 */
+	protected function is_shared_object_request() {
+		if ( function_exists( 'is_product' ) && is_product() ) {
+			return true;
+		}
+
+		return function_exists( 'is_tax' ) && is_tax( Term_Translations::TAXONOMIES );
+	}
+
+	/**
+	 * Returns the language slug named by a URL's language prefix.
+	 *
+	 * Delegates to Linguator's own links model rather than parsing the URL itself, so this always
+	 * agrees with whatever Linguator considers a known language, in whichever URL mode is active.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $url The URL to read the language prefix from.
+	 * @return string The language slug, or an empty string when the URL names no language Linguator knows.
+	 */
+	protected function known_language_prefix( $url ) {
+		if ( ! function_exists( 'LMAT' ) ) {
+			return '';
+		}
+
+		$linguator = LMAT();
+
+		if ( ! is_object( $linguator ) || ! isset( $linguator->links_model ) || ! method_exists( $linguator->links_model, 'get_language_from_url' ) ) {
+			return '';
+		}
+
+		return (string) $linguator->links_model->get_language_from_url( $url );
 	}
 
 	/**

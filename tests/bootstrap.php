@@ -783,6 +783,24 @@ class Lmat_Test_Links_Model {
 	public function switch_language_in_link( $url, $language ) {
 		return $this->add_language_to_link( $this->remove_language_from_link( $url ), $language );
 	}
+
+	/**
+	 * Simulates Linguator_Links_Directory::get_language_from_url(): returns the slug named by the
+	 * URL's first path segment when it is one of the simulated known languages, an empty string
+	 * otherwise.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $url The URL to read the language from.
+	 * @return string The language slug, or an empty string when the URL names no known language.
+	 */
+	public function get_language_from_url( $url = '' ) {
+		$path    = (string) parse_url( (string) $url, PHP_URL_PATH ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url
+		$segment = explode( '/', ltrim( $path, '/' ) );
+		$slug    = isset( $segment[0] ) ? $segment[0] : '';
+
+		return in_array( $slug, (array) lmat_test_get( 'languages', array() ), true ) ? $slug : '';
+	}
 }
 
 /**
