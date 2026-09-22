@@ -207,4 +207,21 @@ class Coordinator_Test extends TestCase {
 
 		$this->assertTrue( has_filter( 'seopress_titles_title' ) );
 	}
+
+	/**
+	 * With shared mode on and the request in the admin, the entry panel is wired in too: a
+	 * regression that dropped `$this->product_panel->init()` from register_shared_mode() would
+	 * defeat the only way a human can enter a translation, silently.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_product_panel() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+		lmat_test_set( 'is_admin', true );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'add_meta_boxes' ) );
+	}
 }

@@ -114,6 +114,15 @@ class Linguator_WooCommerce {
 	protected $seo = null;
 
 	/**
+	 * The admin-side entry panel for translated product text.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Admin\Product_Panel|null
+	 */
+	protected $product_panel = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -180,6 +189,11 @@ class Linguator_WooCommerce {
 
 		$this->seo = new Seo( $this->repository, $this->gate, $this->frontend );
 		$this->seo->init();
+
+		if ( is_admin() ) {
+			$this->product_panel = new Admin\Product_Panel( $this->repository );
+			$this->product_panel->init();
+		}
 
 		// Same priority as the shop handler: each stands aside when another has already resolved a URL.
 		add_filter( 'lmat_pre_translation_url', array( $this, 'product_translation_url' ), 15, 2 );

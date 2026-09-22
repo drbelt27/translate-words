@@ -24,37 +24,38 @@ $GLOBALS['lmat_test_state'] = array();
  */
 function lmat_test_reset_state() {
 	$GLOBALS['lmat_test_state'] = array(
-		'is_shop'           => false,
-		'is_front_page'     => false,
-		'is_product'        => false,
-		'is_product_tax'    => false,
-		'queried_object_id' => 0,
-		'queried_term'      => null,
-		'term_links'        => array(),
-		'shop_page_id'      => -1,
-		'translations'      => array(),
-		'permalinks'        => array(),
-		'unreadable_ids'    => array(),
-		'linguator'         => true,
-		'hooks'             => array(),
-		'post_meta'         => array(),
-		'term_meta'         => array(),
-		'primed_posts'      => array(),
-		'primed_terms'      => array(),
-		'is_admin'          => false,
-		'doing_ajax'        => false,
-		'doing_cron'        => false,
-		'rest_request'      => false,
-		'wp_cli'            => false,
-		'curlang'           => 'it',
-		'default_lang'      => 'it',
-		'languages'         => array( 'it', 'de', 'fr', 'en' ),
-		'options'           => array(),
-		'products'          => array(),
-		'product_ids'       => array(),
-		'post_translations' => array(),
-		'post_types'        => array(),
-		'cart_items'        => array(),
+		'is_shop'             => false,
+		'is_front_page'       => false,
+		'is_product'          => false,
+		'is_product_tax'      => false,
+		'queried_object_id'   => 0,
+		'queried_term'        => null,
+		'term_links'          => array(),
+		'shop_page_id'        => -1,
+		'translations'        => array(),
+		'permalinks'          => array(),
+		'unreadable_ids'      => array(),
+		'linguator'           => true,
+		'hooks'               => array(),
+		'post_meta'           => array(),
+		'term_meta'           => array(),
+		'primed_posts'        => array(),
+		'primed_terms'        => array(),
+		'is_admin'            => false,
+		'doing_ajax'          => false,
+		'doing_cron'          => false,
+		'rest_request'        => false,
+		'wp_cli'              => false,
+		'curlang'             => 'it',
+		'default_lang'        => 'it',
+		'languages'           => array( 'it', 'de', 'fr', 'en' ),
+		'options'             => array(),
+		'products'            => array(),
+		'product_ids'         => array(),
+		'post_translations'   => array(),
+		'post_types'          => array(),
+		'cart_items'          => array(),
+		'product_attributes'  => array(),
 	);
 }
 
@@ -517,6 +518,27 @@ function wp_kses_post( $value ) {
 }
 
 /**
+ * Simulates WordPress's wp_list_pluck().
+ *
+ * @since 2.3.0
+ *
+ * @param array  $list  List of arrays to pluck from.
+ * @param string $field Field to pluck from each array.
+ * @return array
+ */
+function wp_list_pluck( $list, $field ) {
+	$values = array();
+
+	foreach ( (array) $list as $item ) {
+		if ( is_array( $item ) && isset( $item[ $field ] ) ) {
+			$values[] = $item[ $field ];
+		}
+	}
+
+	return $values;
+}
+
+/**
  * Simulates WordPress's wp_unslash().
  *
  * @since 2.3.0
@@ -733,6 +755,21 @@ class Lmat_Test_Links_Model {
 }
 
 /**
+ * Simulates a product's attribute list as WC_Product::get_attributes() shapes it: an attribute
+ * name mapped to its list of canonical option values.
+ *
+ * @since 2.3.0
+ *
+ * @param int $product_id Product ID.
+ * @return array
+ */
+function lmat_test_product_attributes( $product_id ) {
+	$attributes = (array) lmat_test_get( 'product_attributes', array() );
+
+	return isset( $attributes[ (int) $product_id ] ) ? $attributes[ (int) $product_id ] : array();
+}
+
+/**
  * Product stub exposing only what the integration calls.
  *
  * @since 2.3.0
@@ -805,6 +842,18 @@ class Lmat_Test_Product {
 	 */
 	public function get_type() {
 		return $this->type;
+	}
+
+	/**
+	 * Returns the product's attributes, the same shape WC_Product::get_attributes() would: an
+	 * attribute name mapped to its list of canonical option values.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return array
+	 */
+	public function get_attributes() {
+		return lmat_test_product_attributes( $this->id );
 	}
 }
 
@@ -1176,6 +1225,7 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/cart.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/orders.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/term-translations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/seo.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/admin/product-panel.php';
 
 /**
  * Returns the queried object ID for the current request.
