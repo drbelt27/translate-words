@@ -67,6 +67,15 @@ class Linguator_WooCommerce {
 	protected $attributes = null;
 
 	/**
+	 * Localized variation payload text.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Variations|null
+	 */
+	protected $variations = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -118,6 +127,9 @@ class Linguator_WooCommerce {
 
 		$this->attributes = new Attribute_Translations( $this->repository, $this->gate, $this->frontend );
 		$this->attributes->init();
+
+		$this->variations = new Variations( $this->repository, $this->gate, $this->frontend );
+		$this->variations->init();
 	}
 
 	/**
