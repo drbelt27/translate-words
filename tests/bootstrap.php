@@ -1018,3 +1018,4 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-repository.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translated-object-types.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translations.php';

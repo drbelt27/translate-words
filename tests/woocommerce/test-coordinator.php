@@ -92,4 +92,20 @@ class Coordinator_Test extends TestCase {
 
 		$this->assertTrue( has_filter( 'woocommerce_email_header' ) );
 	}
+
+	/**
+	 * With shared mode on, attribute label translation is wired in too: a regression that dropped
+	 * `$this->attributes->init()` from register_shared_mode() would defeat variation attribute
+	 * localization silently.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_attribute_translations() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'woocommerce_attribute_label' ) );
+	}
 }

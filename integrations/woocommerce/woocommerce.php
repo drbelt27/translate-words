@@ -58,6 +58,15 @@ class Linguator_WooCommerce {
 	protected $frontend = null;
 
 	/**
+	 * Translated attribute labels and option labels.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Attribute_Translations|null
+	 */
+	protected $attributes = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -106,6 +115,9 @@ class Linguator_WooCommerce {
 
 		$this->frontend = new Frontend( $this->repository, $this->gate );
 		$this->frontend->init();
+
+		$this->attributes = new Attribute_Translations( $this->repository, $this->gate, $this->frontend );
+		$this->attributes->init();
 	}
 
 	/**
