@@ -5,6 +5,8 @@
 
 namespace Linguator\Integrations\woocommerce;
 
+use WP_Term;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Don't access directly.
 }
@@ -166,6 +168,10 @@ class Linguator_WooCommerce {
 
 		$this->term_translations = new Term_Translations( $this->repository, $this->gate, $this->frontend );
 		$this->term_translations->init();
+
+		// Same priority as the shop handler: each stands aside when another has already resolved a URL.
+		add_filter( 'lmat_pre_translation_url', array( $this, 'product_translation_url' ), 15, 2 );
+		add_filter( 'lmat_pre_translation_url', array( $this, 'term_archive_translation_url' ), 15, 2 );
 	}
 
 	/**
@@ -214,6 +220,121 @@ class Linguator_WooCommerce {
 		$permalink = get_permalink( $translated_id );
 
 		return is_string( $permalink ) && '' !== $permalink ? $permalink : $url;
+	}
+
+	/**
+	 * Returns the URL of the current product in another language.
+	 *
+	 * A shared product has no translation post, so Linguator's own `is_single()` branch — which
+	 * resolves through `$this->model->post->get( $id, $language )` — cannot find one and the
+	 * switcher falls back to the home page. The product is the same object in every language, so
+	 * its URL is its canonical permalink carrying the other language's prefix.
+	 *
+	 * The alternates loop is built from the same resolution, so this restores `hreflang` on product
+	 * pages as a by-product: without it, only the self link resolves and nothing is printed.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $url      An empty string or the URL of the translation of the current page.
+	 * @param object $language The language of the translation.
+	 * @return string
+	 */
+	public function product_translation_url( $url, $language ) {
+		if ( ! empty( $url ) || ! $this->can_resolve_shared_url( $language ) ) {
+			return $url;
+		}
+
+		if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+			return $url;
+		}
+
+		$product_id = (int) get_queried_object_id();
+
+		if ( $product_id <= 0 ) {
+			return $url;
+		}
+
+		$permalink = get_permalink( $product_id );
+
+		if ( ! is_string( $permalink ) || '' === $permalink ) {
+			return $url;
+		}
+
+		return $this->switch_language_in_url( $permalink, $language, $url );
+	}
+
+	/**
+	 * Returns the URL of the current product term archive in another language.
+	 *
+	 * Making `product_cat` shared takes it out of `is_translated_taxonomy()`, which disables
+	 * Linguator's `is_tax()` branch. The generic archive branch then counts posts by language and
+	 * finds none, because products no longer carry one, so the URL is suppressed and the visitor
+	 * lands on the home page.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $url      An empty string or the URL of the translation of the current page.
+	 * @param object $language The language of the translation.
+	 * @return string
+	 */
+	public function term_archive_translation_url( $url, $language ) {
+		if ( ! empty( $url ) || ! $this->can_resolve_shared_url( $language ) ) {
+			return $url;
+		}
+
+		if ( ! function_exists( 'is_tax' ) || ! is_tax( Term_Translations::TAXONOMIES ) ) {
+			return $url;
+		}
+
+		$term = get_queried_object();
+
+		if ( ! $term instanceof WP_Term ) {
+			return $url;
+		}
+
+		$link = get_term_link( $term, $term->taxonomy );
+
+		if ( ! is_string( $link ) || '' === $link ) {
+			return $url;
+		}
+
+		return $this->switch_language_in_url( $link, $language, $url );
+	}
+
+	/**
+	 * Tells whether the shared-object URL handlers may act.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param object $language The language of the translation.
+	 * @return bool
+	 */
+	protected function can_resolve_shared_url( $language ) {
+		return is_object( $language ) && ! empty( $language->slug ) && Shared_Mode::is_enabled();
+	}
+
+	/**
+	 * Rewrites the language segment of a canonical URL.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $url      The canonical URL.
+	 * @param object $language The target language.
+	 * @param string $fallback Value to return when Linguator's links model is unavailable.
+	 * @return string
+	 */
+	protected function switch_language_in_url( $url, $language, $fallback ) {
+		if ( ! function_exists( 'LMAT' ) ) {
+			return $fallback;
+		}
+
+		$linguator = LMAT();
+
+		if ( ! is_object( $linguator ) || ! isset( $linguator->links_model ) || ! method_exists( $linguator->links_model, 'switch_language_in_link' ) ) {
+			return $fallback;
+		}
+
+		return (string) $linguator->links_model->switch_language_in_link( $url, $language );
 	}
 
 	/**

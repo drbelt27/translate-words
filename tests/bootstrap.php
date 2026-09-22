@@ -28,7 +28,9 @@ function lmat_test_reset_state() {
 		'is_front_page'     => false,
 		'is_product'        => false,
 		'is_product_tax'    => false,
+		'queried_object_id' => 0,
 		'queried_term'      => null,
+		'term_links'        => array(),
 		'shop_page_id'      => -1,
 		'translations'      => array(),
 		'permalinks'        => array(),
@@ -1173,6 +1175,66 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/variations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/cart.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/orders.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/term-translations.php';
+
+/**
+ * Returns the queried object ID for the current request.
+ *
+ * @since 2.3.0
+ *
+ * @return int
+ */
+function get_queried_object_id() {
+	return (int) lmat_test_get( 'queried_object_id', 0 );
+}
+
+/**
+ * Returns the queried object for the current request.
+ *
+ * @since 2.3.0
+ *
+ * @return mixed
+ */
+function get_queried_object() {
+	return lmat_test_get( 'queried_term', null );
+}
+
+/**
+ * Tells whether the current request is a term archive, optionally for a specific taxonomy.
+ *
+ * @since 2.3.0
+ *
+ * @param string $taxonomy Taxonomy name to check, or empty string for any.
+ * @return bool
+ */
+function is_tax( $taxonomy = '' ) {
+	$current = (string) lmat_test_get( 'is_product_tax', '' );
+
+	if ( '' === $current || false === $current ) {
+		return false;
+	}
+
+	if ( '' === $taxonomy ) {
+		return true;
+	}
+
+	return in_array( $current, (array) $taxonomy, true );
+}
+
+/**
+ * Returns the link URL for a term.
+ *
+ * @since 2.3.0
+ *
+ * @param WP_Term|int $term     Term object or ID.
+ * @param string      $taxonomy Taxonomy name (unused by the stub).
+ * @return string|false
+ */
+function get_term_link( $term, $taxonomy = '' ) {
+	$links = (array) lmat_test_get( 'term_links', array() );
+	$id    = is_object( $term ) ? (int) $term->term_id : (int) $term;
+
+	return isset( $links[ $id ] ) ? $links[ $id ] : false;
+}
 
 /**
  * Minimal WP_Term stand-in.

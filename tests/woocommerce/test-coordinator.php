@@ -170,4 +170,21 @@ class Coordinator_Test extends TestCase {
 
 		$this->assertTrue( has_filter( 'get_term' ) );
 	}
+
+	/**
+	 * With shared mode on, language switching on products and product term archives is wired in too:
+	 * a regression that dropped the product_translation_url and term_archive_translation_url handlers
+	 * from register_shared_mode() would defeat language switching and hreflang on shared objects silently.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_object_translation_url_handlers() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'lmat_pre_translation_url', array( $integration, 'product_translation_url' ) ) );
+		$this->assertTrue( has_filter( 'lmat_pre_translation_url', array( $integration, 'term_archive_translation_url' ) ) );
+	}
 }
