@@ -76,6 +76,15 @@ class Linguator_WooCommerce {
 	protected $variations = null;
 
 	/**
+	 * Cart and catalogue loop priming.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Cart|null
+	 */
+	protected $cart = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -130,6 +139,9 @@ class Linguator_WooCommerce {
 
 		$this->variations = new Variations( $this->repository, $this->gate, $this->frontend );
 		$this->variations->init();
+
+		$this->cart = new Cart( $this->repository );
+		$this->cart->init();
 	}
 
 	/**

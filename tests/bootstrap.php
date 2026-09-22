@@ -52,6 +52,7 @@ function lmat_test_reset_state() {
 		'product_ids'       => array(),
 		'post_translations' => array(),
 		'post_types'        => array(),
+		'cart_items'        => array(),
 	);
 }
 
@@ -1012,6 +1013,58 @@ class Lmat_Test_REST_Response {
 	}
 }
 
+/**
+ * Simulates WooCommerce's global WC() accessor.
+ *
+ * @since 2.3.0
+ *
+ * @return Lmat_Test_WC
+ */
+function WC() { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
+	return new Lmat_Test_WC();
+}
+
+/**
+ * WooCommerce instance stub, exposing only the cart.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_WC {
+	/**
+	 * Cart stub.
+	 *
+	 * @var Lmat_Test_Cart
+	 */
+	public $cart;
+
+	/**
+	 * Constructor.
+	 *
+	 * @since 2.3.0
+	 */
+	public function __construct() {
+		$this->cart = new Lmat_Test_Cart();
+	}
+}
+
+/**
+ * Cart stub.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Cart {
+	/**
+	 * Returns the simulated cart items.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return array
+	 */
+	public function get_cart() {
+		return (array) lmat_test_get( 'cart_items', array() );
+	}
+}
+
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/context-gate.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
@@ -1020,3 +1073,4 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/translated-object-t
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/variations.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/cart.php';

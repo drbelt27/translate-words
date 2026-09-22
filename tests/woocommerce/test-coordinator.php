@@ -124,4 +124,19 @@ class Coordinator_Test extends TestCase {
 
 		$this->assertTrue( has_filter( 'woocommerce_available_variation' ) );
 	}
+
+	/**
+	 * With shared mode on, cart and catalogue loop priming is wired in too: a regression that dropped
+	 * `$this->cart->init()` from register_shared_mode() would defeat meta cache priming silently.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_cart() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'woocommerce_cart_loaded_from_session' ) );
+	}
 }
