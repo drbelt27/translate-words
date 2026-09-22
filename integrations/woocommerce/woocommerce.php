@@ -40,6 +40,15 @@ class Linguator_WooCommerce {
 	protected $gate = null;
 
 	/**
+	 * The adapter that takes products and product taxonomies out of translate-by-duplication.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Translated_Object_Types|null
+	 */
+	protected $translated_object_types = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -82,6 +91,9 @@ class Linguator_WooCommerce {
 
 		$this->gate = new Context_Gate();
 		$this->gate->init();
+
+		$this->translated_object_types = new Translated_Object_Types();
+		$this->translated_object_types->init();
 	}
 
 	/**

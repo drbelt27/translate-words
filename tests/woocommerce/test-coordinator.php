@@ -53,8 +53,6 @@ class Coordinator_Test extends TestCase {
 	 * @return void
 	 */
 	public function test_shared_mode_on_registers_the_identity_filters() {
-		$this->markTestIncomplete( 'Identity adapter arrives in Task 6.' );
-
 		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
 
 		$integration = new Linguator_WooCommerce();
@@ -62,5 +60,21 @@ class Coordinator_Test extends TestCase {
 
 		$this->assertTrue( has_filter( 'lmat_get_post_types' ) );
 		$this->assertTrue( has_filter( 'lmat_get_taxonomies' ) );
+	}
+
+	/**
+	 * With shared mode on, the localization context gate is wired in too: Context_Gate::init()
+	 * registers `woocommerce_email_header`, and a regression that dropped `$this->gate->init()`
+	 * from register_shared_mode() would defeat email-context suspension silently.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_context_gate() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'woocommerce_email_header' ) );
 	}
 }
