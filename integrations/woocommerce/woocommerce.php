@@ -85,6 +85,15 @@ class Linguator_WooCommerce {
 	protected $cart = null;
 
 	/**
+	 * Purchase language and text frozen at order creation.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Orders|null
+	 */
+	protected $orders = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -142,6 +151,9 @@ class Linguator_WooCommerce {
 
 		$this->cart = new Cart( $this->repository );
 		$this->cart->init();
+
+		$this->orders = new Orders( $this->repository, $this->gate, $this->frontend );
+		$this->orders->init();
 	}
 
 	/**

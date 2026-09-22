@@ -47,6 +47,10 @@ class Context_Gate {
 	/**
 	 * Contexts currently suspended.
 	 *
+	 * Uses a boolean per context rather than a reference count, so re-entrant suspension of the
+	 * same context would have the inner resume() lift the outer one. This is benign for WooCommerce's
+	 * actual flows, which do not nest.
+	 *
 	 * @since 2.3.0
 	 *
 	 * @var array<string, bool>
@@ -54,7 +58,10 @@ class Context_Gate {
 	protected $suspended = array();
 
 	/**
-	 * Brackets the request phases during which localization must not happen.
+	 * Brackets the email context during which localization must not happen.
+	 *
+	 * Email bodies read the snapshot frozen at purchase, never live translations. The order context
+	 * is bracketed by the Orders adapter around checkout.
 	 *
 	 * @since 2.3.0
 	 *

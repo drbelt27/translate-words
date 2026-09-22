@@ -139,4 +139,19 @@ class Coordinator_Test extends TestCase {
 
 		$this->assertTrue( has_filter( 'woocommerce_cart_loaded_from_session' ) );
 	}
+
+	/**
+	 * With shared mode on, order creation hooks are wired in too: a regression that dropped
+	 * `$this->orders->init()` from register_shared_mode() would defeat order language freezing silently.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_orders() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'woocommerce_checkout_create_order' ) );
+	}
 }

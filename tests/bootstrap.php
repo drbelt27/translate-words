@@ -1065,6 +1065,103 @@ class Lmat_Test_Cart {
 	}
 }
 
+/**
+ * Order stub carrying meta.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Order {
+	/**
+	 * Meta store.
+	 *
+	 * @var array
+	 */
+	protected $meta = array();
+
+	/**
+	 * Adds meta data to the order.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $key    Meta key.
+	 * @param mixed  $value  Meta value.
+	 * @param bool   $unique Whether the meta is unique.
+	 * @return void
+	 */
+	public function add_meta_data( $key, $value, $unique = false ) {
+		$this->meta[ $key ] = $value;
+	}
+
+	/**
+	 * Gets meta data from the order.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $key    Meta key.
+	 * @param bool   $single Whether to return a single value.
+	 * @return mixed
+	 */
+	public function get_meta( $key, $single = true ) {
+		return isset( $this->meta[ $key ] ) ? $this->meta[ $key ] : '';
+	}
+}
+
+/**
+ * Order line item stub.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Order_Item extends Lmat_Test_Order {
+	/**
+	 * Product ID.
+	 *
+	 * @var int
+	 */
+	protected $product_id;
+
+	/**
+	 * Variation ID, 0 for a simple product.
+	 *
+	 * @var int
+	 */
+	protected $variation_id;
+
+	/**
+	 * Constructor.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param int $product_id   Product ID.
+	 * @param int $variation_id Variation ID.
+	 */
+	public function __construct( $product_id, $variation_id = 0 ) {
+		$this->product_id   = (int) $product_id;
+		$this->variation_id = (int) $variation_id;
+	}
+
+	/**
+	 * Returns the product ID.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return int
+	 */
+	public function get_product_id() {
+		return $this->product_id;
+	}
+
+	/**
+	 * Returns the variation ID.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return int
+	 */
+	public function get_variation_id() {
+		return $this->variation_id;
+	}
+}
+
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/context-gate.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
@@ -1074,3 +1171,4 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/variations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/cart.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/orders.php';
