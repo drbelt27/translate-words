@@ -94,6 +94,15 @@ class Linguator_WooCommerce {
 	protected $orders = null;
 
 	/**
+	 * Translated product category, tag and brand labels.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Term_Translations|null
+	 */
+	protected $term_translations = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -154,6 +163,9 @@ class Linguator_WooCommerce {
 
 		$this->orders = new Orders( $this->repository, $this->gate, $this->frontend );
 		$this->orders->init();
+
+		$this->term_translations = new Term_Translations( $this->repository, $this->gate, $this->frontend );
+		$this->term_translations->init();
 	}
 
 	/**

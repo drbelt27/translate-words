@@ -1172,3 +1172,64 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translati
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/variations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/cart.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/orders.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/term-translations.php';
+
+/**
+ * Minimal WP_Term stand-in.
+ *
+ * @since 2.3.0
+ */
+class WP_Term {
+	/**
+	 * Term ID.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var int
+	 */
+	public $term_id;
+
+	/**
+	 * Taxonomy name.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var string
+	 */
+	public $taxonomy;
+
+	/**
+	 * Term name.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var string
+	 */
+	public $name;
+
+	/**
+	 * Term description.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var string
+	 */
+	public $description;
+
+	/**
+	 * Constructor.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param int    $term_id     Term ID.
+	 * @param string $taxonomy    Taxonomy name.
+	 * @param string $name        Term name.
+	 * @param string $description Term description.
+	 */
+	public function __construct( $term_id, $taxonomy = 'product_cat', $name = '', $description = '' ) {
+		$this->term_id     = (int) $term_id;
+		$this->taxonomy    = $taxonomy;
+		$this->name        = $name;
+		$this->description = $description;
+	}
+}

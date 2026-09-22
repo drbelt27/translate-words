@@ -154,4 +154,20 @@ class Coordinator_Test extends TestCase {
 
 		$this->assertTrue( has_filter( 'woocommerce_checkout_create_order' ) );
 	}
+
+	/**
+	 * With shared mode on, term label translation is wired in too: a regression that dropped
+	 * `$this->term_translations->init()` from register_shared_mode() would defeat product category,
+	 * tag and brand label localization silently.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_term_translations() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'get_term' ) );
+	}
 }
