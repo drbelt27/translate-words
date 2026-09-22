@@ -645,6 +645,37 @@ function get_permalink( $post_id = 0 ) {
 }
 
 /**
+ * Simulates WordPress's get_edit_post_link(), in the 'raw' context: an unescaped post.php edit
+ * URL carrying `post` and `action=edit`, the query the product edit screen is always loaded with.
+ *
+ * @since 2.3.0
+ *
+ * @param int    $id      Post ID.
+ * @param string $context Unused, kept for signature parity with the real function.
+ * @return string
+ */
+function get_edit_post_link( $id, $context = 'display' ) {
+	return 'http://example.org/wp-admin/post.php?post=' . (int) $id . '&action=edit';
+}
+
+/**
+ * Simulates WordPress's add_query_arg() for the one call shape this suite needs: adding a single
+ * key/value pair to a URL that may or may not already carry a query string.
+ *
+ * @since 2.3.0
+ *
+ * @param string $key   Query argument name.
+ * @param string $value Query argument value.
+ * @param string $url   URL to add the argument to.
+ * @return string
+ */
+function add_query_arg( $key, $value, $url ) {
+	$separator = false === strpos( $url, '?' ) ? '?' : '&';
+
+	return $url . $separator . rawurlencode( (string) $key ) . '=' . rawurlencode( (string) $value );
+}
+
+/**
  * Simulates Linguator's translation lookup.
  *
  * @since 2.2.1
@@ -1002,6 +1033,18 @@ function linguator_current_language( $field = 'slug' ) {
  */
 function linguator_default_language( $field = 'slug' ) {
 	return (string) lmat_test_get( 'default_lang', 'it' );
+}
+
+/**
+ * Simulates Linguator's linguator_languages_list(), in the default 'fields' => 'slug' shape.
+ *
+ * @since 2.3.0
+ *
+ * @param array $args Unused by the stub; the real function's default already returns slugs.
+ * @return string[]
+ */
+function linguator_languages_list( $args = array() ) {
+	return (array) lmat_test_get( 'languages', array() );
 }
 
 /**

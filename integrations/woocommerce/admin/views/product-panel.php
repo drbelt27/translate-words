@@ -4,11 +4,12 @@
  *
  * @package Linguator
  *
- * @var string $language    The language being edited.
- * @var array  $descriptors The translatable fields.
- * @var array  $record      The stored record for this language.
- * @var object $repository  Translation storage.
- * @var object $post        The product post.
+ * @var string $language        The language being edited.
+ * @var array  $descriptors     The translatable fields.
+ * @var array  $record          The stored record for this language.
+ * @var object $repository      Translation storage.
+ * @var object $post            The product post.
+ * @var array  $language_switch Language slug mapped to array( 'url', 'current' ).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -23,14 +24,14 @@ wp_nonce_field( Product_Panel::NONCE_ACTION, Product_Panel::NONCE_FIELD );
 <input type="hidden" name="lmat_wc_revision" value="<?php echo esc_attr( (string) $record['revision'] ); ?>" />
 
 <p>
-	<label for="lmat-wc-language-switch"><?php echo esc_html__( 'Language', 'translate-words' ); ?></label>
-	<select id="lmat-wc-language-switch" name="lmat_wc_language_switch">
-		<?php foreach ( (array) linguator_languages_list() as $slug ) : ?>
-			<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $slug, $language ); ?>>
-				<?php echo esc_html( $slug ); ?>
-			</option>
-		<?php endforeach; ?>
-	</select>
+	<strong><?php echo esc_html__( 'Language', 'translate-words' ); ?>:</strong>
+	<?php foreach ( (array) $language_switch as $slug => $link ) : ?>
+		<?php if ( ! empty( $link['current'] ) ) : ?>
+			<span aria-current="page"><?php echo esc_html( $slug ); ?></span>
+		<?php else : ?>
+			<a href="<?php echo esc_url( $link['url'] ); ?>"><?php echo esc_html( $slug ); ?></a>
+		<?php endif; ?>
+	<?php endforeach; ?>
 </p>
 
 <table class="widefat striped">

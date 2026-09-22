@@ -104,46 +104,50 @@ class Product_Panel {
 	 * @return array List of array( 'key', 'label', 'source', 'type' ).
 	 */
 	public function descriptors( $product ) {
+		// Labels are returned as raw translated text, never pre-escaped: descriptors() is a data
+		// source, not an output point, and the view is the single place that echoes a label, so it
+		// is the single place that escapes one. Pre-escaping here and escaping again in the view
+		// would double-escape, which corrupts any translated label containing &, <, >, or a quote.
 		$descriptors = array(
 			array(
 				'key'    => 'name',
-				'label'  => esc_html__( 'Product name', 'translate-words' ),
+				'label'  => __( 'Product name', 'translate-words' ),
 				'source' => $this->source( $product, 'get_name' ),
 				'type'   => self::TYPE_TEXT,
 			),
 			array(
 				'key'    => 'short_description',
-				'label'  => esc_html__( 'Short description', 'translate-words' ),
+				'label'  => __( 'Short description', 'translate-words' ),
 				'source' => $this->source( $product, 'get_short_description' ),
 				'type'   => self::TYPE_HTML,
 			),
 			array(
 				'key'    => 'description',
-				'label'  => esc_html__( 'Description', 'translate-words' ),
+				'label'  => __( 'Description', 'translate-words' ),
 				'source' => $this->source( $product, 'get_description' ),
 				'type'   => self::TYPE_HTML,
 			),
 			array(
 				'key'    => Seo::FIELD_TITLE,
-				'label'  => esc_html__( 'SEO title', 'translate-words' ),
+				'label'  => __( 'SEO title', 'translate-words' ),
 				'source' => '',
 				'type'   => self::TYPE_TEXT,
 			),
 			array(
 				'key'    => Seo::FIELD_DESCRIPTION,
-				'label'  => esc_html__( 'Meta description', 'translate-words' ),
+				'label'  => __( 'Meta description', 'translate-words' ),
 				'source' => '',
 				'type'   => self::TYPE_TEXT,
 			),
 			array(
 				'key'    => Seo::FIELD_OG_TITLE,
-				'label'  => esc_html__( 'Open Graph title', 'translate-words' ),
+				'label'  => __( 'Open Graph title', 'translate-words' ),
 				'source' => '',
 				'type'   => self::TYPE_TEXT,
 			),
 			array(
 				'key'    => Seo::FIELD_OG_DESCRIPTION,
-				'label'  => esc_html__( 'Open Graph description', 'translate-words' ),
+				'label'  => __( 'Open Graph description', 'translate-words' ),
 				'source' => '',
 				'type'   => self::TYPE_TEXT,
 			),
@@ -154,7 +158,7 @@ class Product_Panel {
 				'key'    => Attribute_Translations::label_field( $attribute ),
 				'label'  => sprintf(
 					/* translators: %s is an attribute name. */
-					esc_html__( 'Attribute label: %s', 'translate-words' ),
+					__( 'Attribute label: %s', 'translate-words' ),
 					$attribute
 				),
 				'source' => (string) $attribute,
@@ -166,7 +170,7 @@ class Product_Panel {
 					'key'    => Attribute_Translations::option_field( $attribute, $option ),
 					'label'  => sprintf(
 						/* translators: 1: attribute name, 2: option value. */
-						esc_html__( 'Option label: %1$s / %2$s', 'translate-words' ),
+						__( 'Option label: %1$s / %2$s', 'translate-words' ),
 						$attribute,
 						$option
 					),
@@ -232,10 +236,11 @@ class Product_Panel {
 			return;
 		}
 
-		$language    = $this->selected_language();
-		$descriptors = $this->descriptors( $product );
-		$record      = $this->repository->get_record( (int) $post->ID, $language );
-		$repository  = $this->repository;
+		$language        = $this->selected_language();
+		$descriptors     = $this->descriptors( $product );
+		$record          = $this->repository->get_record( (int) $post->ID, $language );
+		$repository      = $this->repository;
+		$language_switch = $this->language_switch_links( $post, $language );
 
 		include __DIR__ . '/views/product-panel.php';
 	}
@@ -355,13 +360,57 @@ class Product_Panel {
 	}
 
 	/**
+	 * Builds the language-switch links shown above the field table.
+	 *
+	 * Plain links carrying `lmat_wc_language` in the query string of the product's own edit URL —
+	 * the same parameter name selected_language() reads back — rather than a <select> that would
+	 * need JavaScript to actually navigate. A control that looks like a language switcher but is
+	 * not wired to the same parameter the panel reads is worse than no control: it lets someone
+	 * pick "German", type a translation, click Update, and have it silently saved into whichever
+	 * language was already loaded. A link cannot do that: it either takes you to the language it
+	 * names, or it is not there.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param object $post     The product post.
+	 * @param string $language The language currently being edited.
+	 * @return array Language slug mapped to array( 'url' => string, 'current' => bool ).
+	 */
+	public function language_switch_links( $post, $language ) {
+		$links = array();
+
+		if ( ! is_object( $post ) || ! isset( $post->ID ) || ! function_exists( 'get_edit_post_link' ) ) {
+			return $links;
+		}
+
+		$base = (string) get_edit_post_link( (int) $post->ID, 'raw' );
+
+		if ( '' === $base || ! function_exists( 'add_query_arg' ) ) {
+			return $links;
+		}
+
+		$languages = function_exists( 'linguator_languages_list' ) ? (array) linguator_languages_list() : array();
+
+		foreach ( $languages as $slug ) {
+			$slug = (string) $slug;
+
+			$links[ $slug ] = array(
+				'url'     => (string) add_query_arg( 'lmat_wc_language', $slug, $base ),
+				'current' => $slug === $language,
+			);
+		}
+
+		return $links;
+	}
+
+	/**
 	 * Returns the language the panel is editing.
 	 *
 	 * @since 2.3.0
 	 *
 	 * @return string
 	 */
-	protected function selected_language() {
+	public function selected_language() {
 		// Read only: this selects which language the panel displays, and changes nothing.
 		$requested = isset( $_GET['lmat_wc_language'] ) ? sanitize_key( wp_unslash( $_GET['lmat_wc_language'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
