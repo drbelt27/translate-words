@@ -65,27 +65,46 @@ class Orders_Test extends TestCase {
 	}
 
 	/**
-	 * Creating an order suspends localization, so core order fields stay canonical.
+	 * Order line-item creation genuinely suspends localization while WooCommerce would be reading
+	 * the canonical product name, and resumes it once that item's own text has been frozen.
+	 *
+	 * This exercises the real gate consumer, Frontend::product_name(), through the actual
+	 * suspend/resume pair the production hooks call — not Context_Gate::should_localize() in
+	 * isolation. A version of this test that only poked should_localize() directly would keep
+	 * passing even if the should_localize() check were deleted from Frontend::localize(), because
+	 * it would never observe what a caller downstream of the gate actually sees.
 	 *
 	 * @return void
 	 */
 	public function test_order_creation_suspends_localization() {
 		lmat_test_set( 'curlang', 'de' );
 
-		$this->assertTrue( $this->gate->should_localize() );
+		$frontend = new Frontend( $this->repository, $this->gate );
+		$product  = new Lmat_Test_Product( 42 );
 
-		$this->orders->capture_language( new Lmat_Test_Order() );
+		// Before any line item is built, localization works normally.
+		$this->assertSame( 'Mitgliedsbeitrag', $frontend->product_name( 'Tassa di socio', $product ) );
 
-		$this->assertFalse( $this->gate->should_localize() );
+		$item = $this->orders->suspend_for_line_item( new Lmat_Test_Order_Item( 42 ) );
 
-		$this->orders->resume_localization();
+		// Suspended: this is the exact moment WC_Checkout::create_order_line_items() reads
+		// $product->get_name() to set the canonical order item name (WooCommerce core,
+		// includes/class-wc-checkout.php, inside the loop in create_order_line_items()).
+		$this->assertSame( 'Tassa di socio', $frontend->product_name( 'Tassa di socio', $product ) );
 
-		$this->assertTrue( $this->gate->should_localize() );
+		$order = new Lmat_Test_Order();
+		$this->orders->capture_item_text( $item, 'key1', array(), $order );
+
+		// Resumed once this item's own text has been frozen.
+		$this->assertSame( 'Mitgliedsbeitrag', $frontend->product_name( 'Tassa di socio', $product ) );
+
+		// And the frozen text -- not the canonical one -- is what a viewer of this order sees.
+		$this->assertSame( 'Mitgliedsbeitrag', $this->orders->order_item_name( 'Tassa di socio', $item ) );
 	}
 
 	/**
-	 * The line item carries the text the customer saw, resolved from the purchase language
-	 * recorded on the order and not from whatever context is saving it.
+	 * The line item carries the text the customer saw, resolved from the language active while
+	 * the item is built.
 	 *
 	 * @return void
 	 */
@@ -95,6 +114,25 @@ class Orders_Test extends TestCase {
 		$this->orders->capture_language( $order );
 
 		$item = new Lmat_Test_Order_Item( 42 );
+		$this->orders->capture_item_text( $item, 'key1', array(), $order );
+
+		$this->assertSame( 'Mitgliedsbeitrag', $item->get_meta( Orders::ITEM_META_NAME ) );
+	}
+
+	/**
+	 * capture_item_text() must resolve the purchase language itself, not through order meta:
+	 * on the Store API / block checkout path, woocommerce_checkout_create_order (and so
+	 * capture_language()) never fires at all for a given order, so this method cannot depend on
+	 * meta that may not exist yet -- or ever -- at the moment it runs.
+	 *
+	 * @return void
+	 */
+	public function test_item_text_is_frozen_without_order_meta_recorded_first() {
+		lmat_test_set( 'curlang', 'de' );
+
+		$order = new Lmat_Test_Order(); // capture_language() is deliberately never called.
+		$item  = new Lmat_Test_Order_Item( 42 );
+
 		$this->orders->capture_item_text( $item, 'key1', array(), $order );
 
 		$this->assertSame( 'Mitgliedsbeitrag', $item->get_meta( Orders::ITEM_META_NAME ) );
@@ -160,36 +198,20 @@ class Orders_Test extends TestCase {
 	}
 
 	/**
-	 * Suspended gate reads canonical text even though a translation exists, ensuring
-	 * the gate check is effective.
-	 *
-	 * @return void
-	 */
-	public function test_suspended_gate_reads_canonical_text() {
-		lmat_test_set( 'curlang', 'de' );
-		$order = new Lmat_Test_Order();
-		$this->orders->capture_language( $order );
-
-		$item = new Lmat_Test_Order_Item( 42 );
-		$this->orders->capture_item_text( $item, 'key1', array(), $order );
-
-		// Now suspend the gate and verify canonical text would still come back.
-		$this->gate->suspend( Context_Gate::CONTEXT_ORDER );
-
-		// The frozen text is in the meta, but if we read the canonical instead it should come back.
-		$this->assertSame( 'Mitgliedsbeitrag', $item->get_meta( Orders::ITEM_META_NAME ) );
-	}
-
-	/**
-	 * The hooks are registered.
+	 * The hooks are registered, including the line-item-scoped suspend filter that closes the
+	 * canonical-name corruption window, the block-checkout language hook, and the shutdown safety
+	 * net that guarantees the order context is never left suspended past its own request.
 	 *
 	 * @return void
 	 */
 	public function test_init_registers_the_order_hooks() {
 		$this->orders->init();
 
+		$this->assertTrue( has_filter( 'woocommerce_checkout_create_order_line_item_object' ) );
 		$this->assertTrue( has_filter( 'woocommerce_checkout_create_order' ) );
 		$this->assertTrue( has_filter( 'woocommerce_checkout_create_order_line_item' ) );
+		$this->assertTrue( has_filter( 'woocommerce_store_api_checkout_order_processed' ) );
 		$this->assertTrue( has_filter( 'woocommerce_order_item_name' ) );
+		$this->assertTrue( has_filter( 'shutdown' ) );
 	}
 }
