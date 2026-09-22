@@ -51,6 +51,7 @@ function lmat_test_reset_state() {
 		'products'          => array(),
 		'product_ids'       => array(),
 		'post_translations' => array(),
+		'post_types'        => array(),
 	);
 }
 
@@ -928,6 +929,72 @@ function linguator_get_post_translations( $post_id ) {
 }
 
 /**
+ * Simulates Linguator's linguator_current_language().
+ *
+ * @since 2.3.0
+ *
+ * @param string $field Language field to return.
+ * @return string
+ */
+function linguator_current_language( $field = 'slug' ) {
+	return (string) lmat_test_get( 'curlang', 'it' );
+}
+
+/**
+ * Simulates Linguator's linguator_default_language().
+ *
+ * @since 2.3.0
+ *
+ * @param string $field Language field to return.
+ * @return string
+ */
+function linguator_default_language( $field = 'slug' ) {
+	return (string) lmat_test_get( 'default_lang', 'it' );
+}
+
+/**
+ * Simulates WordPress's get_post_type().
+ *
+ * @since 2.3.0
+ *
+ * @param int|object $post Post ID or post object.
+ * @return string
+ */
+function get_post_type( $post = null ) {
+	$post_types = (array) lmat_test_get( 'post_types', array() );
+	$id         = is_object( $post ) && isset( $post->ID ) ? (int) $post->ID : (int) $post;
+
+	return isset( $post_types[ $id ] ) ? $post_types[ $id ] : 'post';
+}
+
+/**
+ * Minimal WP_Post stand-in.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Post {
+	/**
+	 * Post ID.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var int
+	 */
+	public $ID; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.PropertyNotSnakeCase
+
+	/**
+	 * Constructor.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param int $id Post ID.
+	 */
+	public function __construct( $id ) {
+		$this->ID = (int) $id; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.PropertyNotSnakeCase
+	}
+}
+
+/**
  * Minimal WP_REST_Response stand-in.
  *
  * @since 2.3.0
@@ -950,3 +1017,4 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-repository.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translated-object-types.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';

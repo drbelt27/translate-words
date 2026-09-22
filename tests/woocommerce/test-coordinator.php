@@ -48,6 +48,21 @@ class Coordinator_Test extends TestCase {
 	}
 
 	/**
+	 * With shared mode on, the product name getter is filtered: this is the on/off half of the
+	 * guard, paired with the absence assertion in test_shared_mode_off_registers_only_the_switcher_fix().
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_frontend() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'woocommerce_product_get_name' ) );
+	}
+
+	/**
 	 * With shared mode on, the identity filters are registered.
 	 *
 	 * @return void
