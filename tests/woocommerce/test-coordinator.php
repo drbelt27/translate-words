@@ -187,4 +187,24 @@ class Coordinator_Test extends TestCase {
 		$this->assertTrue( has_filter( 'lmat_pre_translation_url', array( $integration, 'product_translation_url' ) ) );
 		$this->assertTrue( has_filter( 'lmat_pre_translation_url', array( $integration, 'term_archive_translation_url' ) ) );
 	}
+
+	/**
+	 * With shared mode on, translated SEO meta is wired in too: a regression that dropped
+	 * `$this->seo->init()` from register_shared_mode() would defeat translated titles and meta
+	 * descriptions on shared products and product term archives silently.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_on_registers_the_seo() {
+		define( 'SEOPRESS_VERSION', '8.0' );
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'seopress_titles_title' ) );
+	}
 }

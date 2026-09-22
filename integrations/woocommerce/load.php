@@ -29,6 +29,7 @@ add_action(
 		require_once __DIR__ . '/cart.php';
 		require_once __DIR__ . '/orders.php';
 		require_once __DIR__ . '/term-translations.php';
+		require_once __DIR__ . '/seo.php';
 		require_once __DIR__ . '/woocommerce.php';
 
 		add_action( 'lmat_init', array( Linguator_Integrations::instance()->woocommerce = new Linguator_WooCommerce(), 'init' ) );

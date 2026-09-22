@@ -1175,6 +1175,7 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/variations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/cart.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/orders.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/term-translations.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/seo.php';
 
 /**
  * Returns the queried object ID for the current request.

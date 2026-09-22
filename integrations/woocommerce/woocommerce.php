@@ -105,6 +105,15 @@ class Linguator_WooCommerce {
 	protected $term_translations = null;
 
 	/**
+	 * Translated SEO meta served to the active SEO plugin.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Seo|null
+	 */
+	protected $seo = null;
+
+	/**
 	 * Setups filters.
 	 *
 	 * Runs on `lmat_init`, which fires inside Linguator's own `plugins_loaded` priority 1 boot.
@@ -168,6 +177,9 @@ class Linguator_WooCommerce {
 
 		$this->term_translations = new Term_Translations( $this->repository, $this->gate, $this->frontend );
 		$this->term_translations->init();
+
+		$this->seo = new Seo( $this->repository, $this->gate, $this->frontend );
+		$this->seo->init();
 
 		// Same priority as the shop handler: each stands aside when another has already resolved a URL.
 		add_filter( 'lmat_pre_translation_url', array( $this, 'product_translation_url' ), 15, 2 );
