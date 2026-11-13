@@ -15,8 +15,8 @@
 - PHP >= 7.2: no typed properties, no arrow functions, no `??=`. Docblocks, not type hints, as in the existing integration.
 - Namespace `Linguator\Integrations\woocommerce`; files in `integrations/woocommerce/`; classes `Slug_Store`, `Slug_Resolver`, `Slug_Routing`, `Slug_Links`; every file starts with the `ABSPATH` guard; `@since 2.3.0`.
 - Storage keys, verbatim: post/term meta `_lmat_wc_slug_<lang>` (plain string), `_lmat_wc_slug_old_<lang>` (array), option `lmat_wc_permalink_bases` = `{ lang: { product, category, tag, attribute } }` plus `old` history per language and base type.
-- Rule 1: translated slug exists in language L, so the canonical slug under `/L/` returns **404**. Rule 2: no translated slug, so the canonical slug keeps working under `/L/`. Rule 3: same for bases, per base type. Rule 4: the default language always uses the canonical slug and base. Rule 5: one object, one ID; slugs never change IDs or variation matching.
-- Superseded translated slug or base: single 301 to the current one. Retired canonical URL: real HTTP 404, never soft, never a redirect to home.
+- Rule 1: translated slug exists in language L, so the canonical slug under `/L/` returns a single **301** to the translated URL (user decision 2026-11-13, to keep Google ranking). Rule 2: no translated slug, so the canonical slug keeps working under `/L/`. Rule 3: same for bases, per base type (canonical base 301s to the translated base). Rule 4: the default language always uses the canonical slug and base. Rule 5: one object, one ID; slugs never change IDs or variation matching.
+- Superseded translated slug or base: single 301 to the current one, never a chain. A slug that never belonged to any object: real HTTP 404, never soft, never a redirect to home.
 - Everything is gated by shared mode (`wc_shared_product_identity`). Shared mode off changes nothing visible and keeps stored slugs.
 - Text domain `translate-words`; tabs, Yoda conditions, `esc_*` at output, nonce plus `current_user_can( 'edit_post' )` / `edit_term` / `manage_options` on every save, `wp_unslash()` then sanitize.
 - LF line endings. Never run `composer install` in the repo (tracked `vendor/` autoloader files).
@@ -92,19 +92,20 @@ Inputs the spec implies but no task's own happy path covers; each has a test in 
 - Consumes: `Slug_Store` (Task 1), `linguator_default_language( 'slug' )`.
 - Produces: `Slug_Resolver` with
   - `__construct( Slug_Store $store )`
-  - `const CANONICAL_UNDER_PREFIX = 'not_found'` (the one switch for the 404-versus-301 SEO trade-off; the other accepted value is `'redirect'`)
+  - `const CANONICAL_UNDER_PREFIX = 'redirect'` (the one switch for the redirect-versus-404 SEO choice; the other accepted value is `'not_found'`); the constructor takes it as an optional second argument so tests can pass the other value
   - `permalink( $type, $object_id, $language, $taxonomy = '' )` returns the full URL string in `$language`, translated slug and base where they exist, canonical otherwise, default language always canonical
   - `resolve( $slug, $type, $language, $taxonomy = '' )` returns `array( 'action' => 'pass'|'map'|'redirect'|'not_found', 'object_id' => int, 'slug' => string, 'url' => string )` where `slug` is the canonical slug to hand to WordPress
   - `resolve_base( $base, $base_type, $language )` same shape, for the base segment
 
 - [ ] **Step 1: Write failing tests in `test-slug-resolver.php`**
-  - `test_rule_1_canonical_slug_404s_when_translated_exists` : product 5 canonical `open-day`, `de` slug `open-day-de`; `resolve( 'open-day', 'post', 'de' )['action']` is `'not_found'`.
+  - `test_rule_1_canonical_slug_301s_to_the_translated_url_when_translated_exists` : product 5 canonical `open-day`, `de` slug `open-day-de`; `resolve( 'open-day', 'post', 'de' )` has action `'redirect'` and `url` equal to `permalink( 'post', 5, 'de' )`.
+  - `test_resolve_returns_not_found_for_a_slug_that_never_belonged_to_any_object` : action `'not_found'`.
   - `test_rule_2_canonical_slug_passes_when_no_translation` : no `de` slug; action is `'pass'`.
   - `test_translated_slug_maps_to_canonical` : `resolve( 'open-day-de', 'post', 'de' )` is `'map'`, `slug` is `'open-day'`, `object_id` is 5.
   - `test_superseded_slug_redirects_to_current_url` : action `'redirect'`, `url` equals `permalink( 'post', 5, 'de' )`.
-  - `test_rule_3_base_follows_the_same_rule_per_base_type` : product base translated, category base not; `resolve_base( 'prodotto', 'product', 'de' )` is `'not_found'`, `resolve_base( 'categoria-prodotto', 'category', 'de' )` is `'pass'`.
+  - `test_rule_3_base_follows_the_same_rule_per_base_type` : product base translated, category base not; `resolve_base( 'prodotto', 'product', 'de' )` action is `'redirect'` to the translated base, `resolve_base( 'categoria-prodotto', 'category', 'de' )` is `'pass'`.
   - `test_rule_4_default_language_is_always_canonical` : in `it`, `permalink()` ignores stored slugs.
-  - `test_canonical_under_prefix_switch` : with the constant overridden to `'redirect'`, rule 1 returns `'redirect'` to the translated URL.
+  - `test_canonical_under_prefix_switch` : constructed with `'not_found'` as the second argument, rule 1 returns `'not_found'` instead.
   - `test_permalink_for_a_term_with_translated_parent_and_untranslated_child` (Review Focus 5): `/de/<de-base>/<de-parent>/<canonical-child>/`, and the reverse.
 
 - [ ] **Step 2: Run to verify failure.** Expected: FAIL, class not found.
@@ -125,7 +126,8 @@ Inputs the spec implies but no task's own happy path covers; each has a test in 
 
 - [ ] **Step 1: Write failing tests in `test-slug-routing.php`**
   - `test_translated_product_slug_is_mapped_to_canonical_query_var` : request `/de/produkt/open-day-de/` yields `product => 'open-day'`.
-  - `test_retired_canonical_slug_sets_404_and_never_redirects_home`.
+  - `test_canonical_slug_under_a_prefix_301s_to_the_translated_url_in_one_hop`.
+  - `test_unknown_slug_sets_404_and_never_redirects_home`.
   - `test_superseded_slug_produces_one_301_to_the_current_url` (no chain).
   - `test_request_variants_resolve_like_the_plain_form` (Review Focus 2): upper-case, missing trailing slash, percent-encoded slug, and `/page/2/` on a translated category.
   - `test_translated_parent_with_untranslated_child_resolves` and the reverse (Review Focus 5).
@@ -238,8 +240,8 @@ Inputs the spec implies but no task's own happy path covers; each has a test in 
 - [ ] **Step 1: Write failing tests**
   - `test_filter_query_accepts_translated_and_canonical_values`.
   - `test_prefixed_url_without_cookie_or_accept_language_is_not_redirected` (Review Focus 4).
-  - `test_retired_url_returns_a_real_404_status`.
+  - `test_unknown_slug_returns_a_real_404_status_and_a_redirected_url_never_chains`.
 - [ ] **Step 2: Run to verify failure.**
 - [ ] **Step 3: Implement `map_attribute_value` and the hook that reads the layered-nav query var.**
 - [ ] **Step 4: Run the full suite in both modes.** Expected: all pass, 0 failed, no new skips beyond the existing 2.
-- [ ] **Step 5: Clone proof, then PR.** With shared mode on: German product, category, tag and attribute-filter URLs; switcher and hreflang land on translated URLs; the canonical slug 404s once a translated one exists; an untranslated product still opens. Then `curl -sI -A "Googlebot" ...` and `-A "GPTBot" ...`, no cookie: statuses, one canonical, reciprocal hreflang, JSON-LD `url`, translated text in raw HTML. Run `phpcs` on the changed files only and fix what is new. Commit `test: prove translated slugs against search and AI crawlers`; push; open the PR against the fork's `main`.
+- [ ] **Step 5: Clone proof, then PR.** With shared mode on: German product, category, tag and attribute-filter URLs; switcher and hreflang land on translated URLs; the canonical slug 301s once a translated one exists; an untranslated product still opens. Then `curl -sI -A "Googlebot" ...` and `-A "GPTBot" ...`, no cookie: statuses, one canonical, reciprocal hreflang, JSON-LD `url`, translated text in raw HTML. Run `phpcs` on the changed files only and fix what is new. Commit `test: prove translated slugs against search and AI crawlers`; push; open the PR against the fork's `main`.

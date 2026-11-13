@@ -34,17 +34,19 @@ a webmaster curates URLs per market, and the site must not break while that work
 ## Anti-goals (a failure even if it technically works)
 
 - A product, category or tag disappearing from a language because no slug was entered yet.
-- Changing a published *translated* URL silently, so inbound links 404. (Does not apply to rule 1 and 3
-  below: there the user explicitly wants the canonical slug or base not found, not redirected.)
+- Changing a published URL silently, so inbound links 404. Every URL that was valid and is replaced
+  (superseded translated slug, canonical slug under a prefix, canonical base) 301s to its successor.
 - Any slug work changing term IDs, product IDs or variation matching.
 
 ## Rules (decided with the user)
 
-1. If an object has a translated slug in language L, `/L/<base>/<canonical-slug>/` returns **404**.
+1. If an object has a translated slug in language L, `/L/<base>/<canonical-slug>/` returns a single
+   **301** to the translated URL. (Changed from 404 by the user on 2026-11-13, to keep the ranking of
+   URLs a crawler indexed while the object was untranslated.)
 2. If an object has **no** translated slug in L, the canonical slug keeps working under `/L/`. This is
    the approved exception: without it the German catalogue would vanish the moment 1b is enabled.
 3. The same two rules apply to the permalink base: once a language has a translated base, the canonical
-   base returns 404 under that prefix; until then it keeps working.
+   base 301s to the translated base under that prefix; until then it keeps working.
 4. The default language always uses the canonical slug and base. Translated slugs exist only for non-default languages.
 5. One object, one ID. Slugs are alternate URL names for the same object.
 
@@ -103,7 +105,8 @@ A single `Slug_Resolver` owns three things, so no caller reimplements them:
   change, never on every request.
 - **Redirects:** a superseded translated slug or base 301s to the current one, so changing one never
   breaks inbound links. Old bases are kept in the option under `old`, per language and base type. The
-  canonical slug or base under a prefix is *not* redirected: rule 1 and 3 say 404.
+  canonical slug or base under a prefix is also 301'd to the translated one (rules 1 and 3). Only a slug
+  that never belonged to any object returns a real 404.
 - **Hierarchical terms** (`product_cat` paths like `/kategorie/parent/child/`): each path segment is
   resolved independently. A translated parent with an untranslated child gives
   `/kategorie/<de-parent>/<canonical-child>/`. Uniqueness is checked per language, type and parent.
@@ -163,7 +166,7 @@ not extras: a translated URL that search engines cannot read correctly defeats t
 - Internal links: related products, cart, widgets, menus, search results, term archives.
 
 **Crawler behaviour:**
-- A retired URL returns a real HTTP 404 status, never a soft 404 and never a redirect to the home page.
+- A slug that never belonged to any object returns a real HTTP 404 status, never a soft 404 and never a redirect to the home page.
 - A superseded translated URL returns a single 301 to the current one, never a chain.
 - Language comes from the URL prefix only. Cookie and `Accept-Language` detection must not redirect a
   request that already carries a language prefix (it must never reroute a crawler that sends no cookie).
@@ -171,11 +174,10 @@ not extras: a translated URL that search engines cannot read correctly defeats t
   attribute. AI crawlers and many search bots do not run JavaScript, so nothing may depend on it.
 - Product text is already served per language by the Phase 1 getters; 1b only changes the URL around it.
 
-**Known SEO trade-off, flagged for the user:** under rule 2, a crawler can index the canonical
-(Italian) slug under `/de/` while a product is untranslated. When the webmaster later adds the German
-slug, rule 1 turns that indexed URL into a 404, which loses its ranking. The standard practice for a moved URL is a
-301. The design follows the user's rule (404) unless the user decides otherwise; the choice is isolated
-in one place in the resolver so it is a one-line change.
+**SEO decision (user, 2026-11-13):** under rule 2, a crawler can index the canonical (Italian) slug
+under `/de/` while a product is untranslated. When the webmaster later adds the German slug, rule 1
+301s that indexed URL to the translated one, so its ranking moves with it. This replaces the earlier
+"404" wording. The choice stays isolated in one resolver constant (`CANONICAL_UNDER_PREFIX`, now `'redirect'`).
 
 **Sustainability:**
 - Slug → object lookup is cached per language and request, and meta for archive pages is primed in one query
@@ -190,6 +192,7 @@ in one place in the resolver so it is a one-line change.
 - Clone site: German product, category, tag and attribute filter URLs; switcher and hreflang land on the
   translated URL; canonical slug 404s once a translated one exists; an untranslated product still opens.
 - Sitemap and SEOPress canonical show translated URLs.
+- Canonical slug under a prefix, once a translated slug exists: a single 301 (never a chain) to the translated URL.
 - Crawler check with `curl` using a Googlebot and a GPTBot user agent, no cookie: correct status codes,
   no language redirect on prefixed URLs, one canonical, reciprocal hreflang, JSON-LD `url` translated,
   translated text present in the raw HTML.
