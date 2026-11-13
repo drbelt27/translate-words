@@ -260,4 +260,132 @@ class Slug_Resolver_Test extends TestCase {
 		$this->assertSame( array( 'map', 10, 'a' ), array( $under_1['action'], $under_1['object_id'], $under_1['slug'] ) );
 		$this->assertSame( array( 'map', 11, 'b' ), array( $under_2['action'], $under_2['object_id'], $under_2['slug'] ) );
 	}
+
+	/**
+	 * An unpublished product is never redirected: a redirect would confirm it exists and leak its slug.
+	 *
+	 * @return void
+	 */
+	public function test_unpublished_product_with_a_translated_slug_does_not_redirect() {
+		Slug_Store::set( 5, 'de', 'open-day-de' );
+
+		foreach ( array( 'draft', 'private', 'pending', 'future' ) as $status ) {
+			lmat_test_set( 'post_statuses', array( 5 => $status ) );
+
+			$result = $this->resolver()->resolve( 'open-day', 'post', 'de' );
+
+			$this->assertSame( 'pass', $result['action'], $status );
+			$this->assertSame( '', $result['url'], $status );
+		}
+
+		lmat_test_set( 'post_statuses', array( 5 => 'publish' ) );
+		$this->assertSame( 'redirect', $this->resolver()->resolve( 'open-day', 'post', 'de' )['action'] );
+	}
+
+	/**
+	 * The history of an unpublished product is not disclosed either.
+	 *
+	 * @return void
+	 */
+	public function test_superseded_slug_of_an_unpublished_product_is_not_found() {
+		Slug_Store::set( 5, 'de', 'open-day-de' );
+		Slug_Store::set( 5, 'de', 'open-day-neu' );
+		lmat_test_set( 'post_statuses', array( 5 => 'draft' ) );
+
+		$this->assertSame( 'not_found', $this->resolver()->resolve( 'open-day-de', 'post', 'de' )['action'] );
+	}
+
+	/**
+	 * A redirect never has an empty target.
+	 *
+	 * @return void
+	 */
+	public function test_redirect_without_a_target_falls_back_to_pass() {
+		Slug_Store::set( 5, 'de', 'open-day-de' );
+		Slug_Store::set( 5, 'de', 'open-day-neu' );
+		lmat_test_set( 'permalinks', array() );
+
+		foreach ( array( 'open-day', 'open-day-de' ) as $slug ) {
+			$this->assertSame( 'pass', $this->resolver()->resolve( $slug, 'post', 'de' )['action'], $slug );
+		}
+	}
+
+	/**
+	 * An unknown canonical base matches nothing, so an empty request base is never redirected.
+	 *
+	 * @return void
+	 */
+	public function test_unknown_canonical_base_does_not_match_an_empty_base() {
+		$this->assertSame( 'pass', $this->resolver()->resolve_base( '', 'bogus', 'de' )['action'] );
+
+		Slug_Store::set_base( 'de', 'attribute', 'attribut' );
+		$this->assertNotSame( 'redirect', $this->resolver()->resolve_base( '', 'attribute', 'de' )['action'] );
+	}
+
+	/**
+	 * Rule 4: in the default language stored and retired slugs mean nothing.
+	 *
+	 * @return void
+	 */
+	public function test_default_language_ignores_stored_and_superseded_slugs() {
+		Slug_Store::set( 5, 'it', 'open-day-it' );
+		Slug_Store::set( 5, 'it', 'open-day-it-2' );
+
+		foreach ( array( 'open-day-it', 'open-day-it-2', 'unknown' ) as $slug ) {
+			$result = $this->resolver()->resolve( $slug, 'post', 'it' );
+
+			$this->assertSame( array( 'pass', 0, $slug ), array( $result['action'], $result['object_id'], $result['slug'] ), $slug );
+		}
+	}
+
+	/**
+	 * A retired slug that is now another object's canonical slug serves that object.
+	 *
+	 * @return void
+	 */
+	public function test_superseded_slug_equal_to_another_objects_canonical_slug_does_not_redirect() {
+		Slug_Store::set( 5, 'de', 'x' );
+		Slug_Store::set( 5, 'de', 'open-day-neu' );
+		lmat_test_set( 'post_names', array( 5 => 'open-day', 6 => 'x' ) );
+
+		$result = $this->resolver()->resolve( 'x', 'post', 'de' );
+
+		$this->assertSame( array( 'pass', 6 ), array( $result['action'], $result['object_id'] ) );
+	}
+
+	/**
+	 * Rule 1 applies to terms as well.
+	 *
+	 * @return void
+	 */
+	public function test_rule_1_redirects_a_term_canonical_slug() {
+		lmat_test_set( 'term_slugs', array( 10 => array( 'slug' => 'cat-c', 'taxonomy' => 'product_cat', 'parent' => 0 ) ) );
+		lmat_test_set( 'term_links', array( 10 => 'https://example.test/categoria-prodotto/cat-c/' ) );
+		Slug_Store::set_base( 'de', 'category', 'kategorie' );
+		Slug_Store::set( 10, 'de', 'kat', 'term', 'product_cat' );
+
+		$result = $this->resolver()->resolve( 'cat-c', 'term', 'de', 'product_cat' );
+
+		$this->assertSame( 'redirect', $result['action'] );
+		$this->assertSame( 10, $result['object_id'] );
+		$this->assertSame( 'https://example.test/de/kategorie/kat/', $result['url'] );
+	}
+
+	/**
+	 * A redirect lands on a URL that maps, never on another redirect.
+	 *
+	 * @return void
+	 */
+	public function test_redirect_is_a_single_hop() {
+		Slug_Store::set( 5, 'de', 'open-day-de' );
+		Slug_Store::set( 5, 'de', 'open-day-neu' );
+
+		foreach ( array( 'open-day', 'open-day-de' ) as $slug ) {
+			$redirect = $this->resolver()->resolve( $slug, 'post', 'de' );
+			$target   = basename( rtrim( $redirect['url'], '/' ) );
+
+			$this->assertSame( 'redirect', $redirect['action'], $slug );
+			$this->assertSame( 'map', $this->resolver()->resolve( $target, 'post', 'de' )['action'], $slug );
+		}
+	}
 }

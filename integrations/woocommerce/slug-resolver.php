@@ -118,7 +118,8 @@ final class Slug_Resolver {
 		$id = $this->find_canonical( $slug, $type, $taxonomy, $parent );
 
 		if ( $id > 0 ) {
-			if ( '' === $this->store::get( $id, $language, $type ) ) {
+			// An unpublished object is never redirected: that would confirm it exists and disclose its slug.
+			if ( '' === $this->store::get( $id, $language, $type ) || ! $this->is_public( $type, $id ) ) {
 				return $this->outcome( 'pass', $id, $slug );
 			}
 
@@ -129,6 +130,10 @@ final class Slug_Resolver {
 		$id = $this->store::find_superseded( $slug, $language, $type, $taxonomy, $parent );
 
 		if ( $id > 0 ) {
+			if ( ! $this->is_public( $type, $id ) ) {
+				return $this->outcome( 'not_found', 0, $slug );
+			}
+
 			return $this->outcome( 'redirect', $id, $this->canonical_slug( $type, $id, $taxonomy ), $this->permalink( $type, $id, $language, $taxonomy ) );
 		}
 
@@ -162,8 +167,13 @@ final class Slug_Resolver {
 			return $this->outcome( 'map', 0, $canonical );
 		}
 
-		if ( $base === $canonical ) {
-			return '' === $translated ? $this->outcome( 'pass', 0, $base ) : $this->retire( 0, $canonical, $translated );
+		if ( $base === $canonical && '' === $translated ) {
+			return $this->outcome( 'pass', 0, $base );
+		}
+
+		// An unknown canonical base ('') matches nothing: it must not redirect an empty request base.
+		if ( $base === $canonical && '' !== $canonical ) {
+			return $this->retire( 0, $canonical, $translated );
 		}
 
 		if ( '' !== $translated && $this->store::is_superseded_base( $base, $language, $base_type ) ) {
@@ -185,6 +195,11 @@ final class Slug_Resolver {
 	 * @return array
 	 */
 	private function outcome( $action, $object_id, $slug, $url = '' ) {
+		// A redirect without a target is useless: let WordPress decide.
+		if ( 'redirect' === $action && '' === $url ) {
+			$action = 'pass';
+		}
+
 		return array(
 			'action'    => $action,
 			'object_id' => (int) $object_id,
@@ -205,6 +220,19 @@ final class Slug_Resolver {
 	 */
 	private function retire( $object_id, $slug, $url ) {
 		return $this->outcome( $this->canonical_under_prefix, $object_id, $slug, 'redirect' === $this->canonical_under_prefix ? $url : '' );
+	}
+
+	/**
+	 * Tells whether an object may be redirected to without disclosing anything: published posts, any term.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $type      Translation_Repository::TYPE_POST or TYPE_TERM.
+	 * @param int    $object_id Post or term ID.
+	 * @return bool
+	 */
+	private function is_public( $type, $object_id ) {
+		return Translation_Repository::TYPE_TERM === $type || 'publish' === get_post_status( $object_id );
 	}
 
 	/**
@@ -236,7 +264,9 @@ final class Slug_Resolver {
 	}
 
 	/**
-	 * Finds the object whose canonical slug is the given one.
+	 * Finds the object whose canonical slug is the given one, whatever its status.
+	 *
+	 * With a null $parent and the same slug under several parents, the first match is returned.
 	 *
 	 * @since 2.3.0
 	 *

@@ -59,6 +59,7 @@ function lmat_test_reset_state() {
 		'cache'               => array(),
 		'post_names'          => array(),
 		'term_slugs'          => array(),
+		'post_statuses'       => array(),
 		'permalink_structure' => array(
 			'product_base'   => '/prodotto',
 			'category_base'  => 'categoria-prodotto',
@@ -1418,6 +1419,20 @@ function maybe_unserialize( $value ) {
  */
 function wc_get_permalink_structure() {
 	return (array) lmat_test_get( 'permalink_structure', array() );
+}
+
+/**
+ * Simulates WordPress's get_post_status(): 'publish' unless the 'post_statuses' state says otherwise.
+ *
+ * @since 2.3.0
+ *
+ * @param int $post Post ID.
+ * @return string
+ */
+function get_post_status( $post ) {
+	$statuses = (array) lmat_test_get( 'post_statuses', array() );
+
+	return isset( $statuses[ (int) $post ] ) ? $statuses[ (int) $post ] : 'publish';
 }
 
 /**
