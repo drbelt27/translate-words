@@ -1348,6 +1348,18 @@ function wp_cache_delete( $key, $group = '' ) {
 }
 
 /**
+ * Simulates WordPress's wp_cache_add_non_persistent_groups(), recording the registered groups.
+ *
+ * @since 2.3.0
+ *
+ * @param string|string[] $groups Cache group or groups.
+ * @return void
+ */
+function wp_cache_add_non_persistent_groups( $groups ) {
+	lmat_test_set( 'non_persistent_groups', array_merge( (array) lmat_test_get( 'non_persistent_groups', array() ), (array) $groups ) );
+}
+
+/**
  * Simulates WordPress's get_option().
  *
  * @since 2.3.0
@@ -1471,6 +1483,10 @@ class Lmat_Test_Wpdb {
 	 * @return array[]
 	 */
 	public function get_results( $query, $output = ARRAY_A ) {
+		if ( lmat_test_get( 'wpdb_fail', false ) ) {
+			return null;
+		}
+
 		preg_match( "/FROM (\w+) WHERE meta_key = '([^']*)'/", $query, $m );
 
 		$rows = array();

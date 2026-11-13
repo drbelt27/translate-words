@@ -177,4 +177,77 @@ class Slug_Store_Test extends TestCase {
 		$this->assertInstanceOf( WP_Error::class, Slug_Store::set_base( 'de', 'bogus', 'x' ) );
 		$this->assertInstanceOf( WP_Error::class, Slug_Store::set_base( 'de', 'product', '!!!' ) );
 	}
+
+	/**
+	 * Same-slug terms under different parents are told apart by the optional parent argument.
+	 *
+	 * @return void
+	 */
+	public function test_find_disambiguates_same_slug_terms_by_parent() {
+		lmat_test_set(
+			'term_slugs',
+			array(
+				10 => array( 'slug' => 'a', 'taxonomy' => 'product_cat', 'parent' => 1 ),
+				11 => array( 'slug' => 'b', 'taxonomy' => 'product_cat', 'parent' => 2 ),
+			)
+		);
+		Slug_Store::set( 10, 'de', 'schuhe', 'term', 'product_cat' );
+		Slug_Store::set( 11, 'de', 'schuhe', 'term', 'product_cat' );
+		Slug_Store::set( 11, 'de', 'boots', 'term', 'product_cat' );
+		Slug_Store::set( 11, 'de', 'schuhe', 'term', 'product_cat' );
+
+		$this->assertSame( 10, Slug_Store::find( 'schuhe', 'de', 'term', 'product_cat', 1 ) );
+		$this->assertSame( 11, Slug_Store::find( 'schuhe', 'de', 'term', 'product_cat', 2 ) );
+		$this->assertSame( 0, Slug_Store::find( 'schuhe', 'de', 'term', 'product_cat', 3 ) );
+		$this->assertSame( 10, Slug_Store::find( 'schuhe', 'de', 'term', 'product_cat' ), 'No parent means any parent.' );
+		$this->assertSame( array( 10, 11 ), Slug_Store::find_all( 'schuhe', 'de', 'term', 'product_cat' ) );
+		$this->assertSame( array(), Slug_Store::find_all( 'nope', 'de' ) );
+	}
+
+	/**
+	 * Superseded term slugs are also told apart by parent.
+	 *
+	 * @return void
+	 */
+	public function test_find_superseded_disambiguates_by_parent() {
+		lmat_test_set(
+			'term_slugs',
+			array(
+				10 => array( 'slug' => 'a', 'taxonomy' => 'product_cat', 'parent' => 1 ),
+				11 => array( 'slug' => 'b', 'taxonomy' => 'product_cat', 'parent' => 2 ),
+			)
+		);
+		foreach ( array( 10, 11 ) as $id ) {
+			Slug_Store::set( $id, 'de', 'alt', 'term', 'product_cat' );
+			Slug_Store::set( $id, 'de', 'neu-' . $id, 'term', 'product_cat' );
+		}
+
+		$this->assertSame( 11, Slug_Store::find_superseded( 'alt', 'de', 'term', 'product_cat', 2 ) );
+		$this->assertSame( 10, Slug_Store::find_superseded( 'alt', 'de', 'term', 'product_cat', 1 ) );
+	}
+
+	/**
+	 * The slug maps live in a non-persistent cache group, so an external object cache never serves a stale map.
+	 *
+	 * @return void
+	 */
+	public function test_cache_group_is_non_persistent() {
+		Slug_Store::find( 'a', 'de' );
+
+		$this->assertContains( Slug_Store::CACHE_GROUP, lmat_test_get( 'non_persistent_groups', array() ) );
+	}
+
+	/**
+	 * A failed lookup is not cached as an empty map.
+	 *
+	 * @return void
+	 */
+	public function test_failed_lookup_is_not_cached() {
+		lmat_test_set( 'wpdb_fail', true );
+		$this->assertSame( 0, Slug_Store::find( 'a', 'de' ) );
+
+		lmat_test_set( 'wpdb_fail', false );
+		lmat_test_set( 'post_meta', array( 5 => array( '_lmat_wc_slug_de' => 'a' ) ) );
+		$this->assertSame( 5, Slug_Store::find( 'a', 'de' ) );
+	}
 }

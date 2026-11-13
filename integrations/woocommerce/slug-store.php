@@ -129,10 +129,11 @@ class Slug_Store {
 	 * @param string $language Language slug.
 	 * @param string $type     Translation_Repository::TYPE_POST or TYPE_TERM.
 	 * @param string $taxonomy Taxonomy to restrict a term lookup to.
+	 * @param int    $parent   Parent term ID to restrict a term lookup to, null for any parent.
 	 * @return int Object ID, 0 when none.
 	 */
-	public static function find( $slug, $language, $type = Translation_Repository::TYPE_POST, $taxonomy = '' ) {
-		$ids = self::matches( $slug, $language, $type, $taxonomy, false );
+	public static function find( $slug, $language, $type = Translation_Repository::TYPE_POST, $taxonomy = '', $parent = null ) {
+		$ids = self::matches( $slug, $language, $type, $taxonomy, false, $parent );
 
 		return empty( $ids ) ? 0 : $ids[0];
 	}
@@ -146,12 +147,29 @@ class Slug_Store {
 	 * @param string $language Language slug.
 	 * @param string $type     Translation_Repository::TYPE_POST or TYPE_TERM.
 	 * @param string $taxonomy Taxonomy to restrict a term lookup to.
+	 * @param int    $parent   Parent term ID to restrict a term lookup to, null for any parent.
 	 * @return int Object ID, 0 when none.
 	 */
-	public static function find_superseded( $slug, $language, $type = Translation_Repository::TYPE_POST, $taxonomy = '' ) {
-		$ids = self::matches( $slug, $language, $type, $taxonomy, true );
+	public static function find_superseded( $slug, $language, $type = Translation_Repository::TYPE_POST, $taxonomy = '', $parent = null ) {
+		$ids = self::matches( $slug, $language, $type, $taxonomy, true, $parent );
 
 		return empty( $ids ) ? 0 : $ids[0];
+	}
+
+	/**
+	 * Finds every object that currently has a slug in a language, for callers that must tell
+	 * same-slug terms under different parents apart.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $slug     Translated slug.
+	 * @param string $language Language slug.
+	 * @param string $type     Translation_Repository::TYPE_POST or TYPE_TERM.
+	 * @param string $taxonomy Taxonomy to restrict a term lookup to.
+	 * @return int[] Object IDs.
+	 */
+	public static function find_all( $slug, $language, $type = Translation_Repository::TYPE_POST, $taxonomy = '' ) {
+		return self::matches( $slug, $language, $type, $taxonomy, false );
 	}
 
 	/**
@@ -315,17 +333,23 @@ class Slug_Store {
 	 * @param string $type     Translation_Repository::TYPE_POST or TYPE_TERM.
 	 * @param string $taxonomy Taxonomy to restrict term IDs to, empty for any.
 	 * @param bool   $old      True to search superseded slugs instead of current ones.
+	 * @param int    $parent   Parent term ID to restrict term IDs to, null for any.
 	 * @return int[]
 	 */
-	private static function matches( $slug, $language, $type, $taxonomy, $old ) {
+	private static function matches( $slug, $language, $type, $taxonomy, $old, $parent = null ) {
 		$map = self::map( $language, $type, $old );
 		$ids = isset( $map[ $slug ] ) ? $map[ $slug ] : array();
 
-		if ( Translation_Repository::TYPE_TERM === $type && '' !== $taxonomy ) {
+		if ( Translation_Repository::TYPE_TERM === $type && ( '' !== $taxonomy || null !== $parent ) ) {
 			$ids = array_filter(
 				$ids,
-				function ( $id ) use ( $taxonomy ) {
-					return get_term_field( 'taxonomy', $id ) === $taxonomy;
+				function ( $id ) use ( $taxonomy, $parent ) {
+					$term_taxonomy = get_term_field( 'taxonomy', $id );
+					$term_parent   = get_term_field( 'parent', $id, $taxonomy );
+
+					return ! is_wp_error( $term_taxonomy ) && ! is_wp_error( $term_parent )
+						&& ( '' === $taxonomy || $term_taxonomy === $taxonomy )
+						&& ( null === $parent || (int) $term_parent === (int) $parent );
 				}
 			);
 		}
@@ -345,7 +369,12 @@ class Slug_Store {
 	 */
 	private static function map( $language, $type, $old ) {
 		$cache_key = $type . ':' . ( $old ? 'old:' : '' ) . sanitize_key( $language );
-		$map       = wp_cache_get( $cache_key, self::CACHE_GROUP );
+		// Per-request only: an external object cache would go stale on writes made outside this class.
+		if ( function_exists( 'wp_cache_add_non_persistent_groups' ) ) {
+			wp_cache_add_non_persistent_groups( self::CACHE_GROUP );
+		}
+
+		$map = wp_cache_get( $cache_key, self::CACHE_GROUP );
 
 		if ( is_array( $map ) ) {
 			return $map;
@@ -360,9 +389,14 @@ class Slug_Store {
 			$wpdb->prepare( "SELECT {$column} AS id, meta_value FROM {$table} WHERE meta_key = %s", self::key( $language, $old ) ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table and column are fixed above.
 			ARRAY_A
 		);
-		$map     = array();
 
-		foreach ( (array) $rows as $row ) {
+		if ( ! is_array( $rows ) ) {
+			return array(); // A failed query must not be cached as an empty map.
+		}
+
+		$map = array();
+
+		foreach ( $rows as $row ) {
 			$values = $old ? (array) maybe_unserialize( $row['meta_value'] ) : array( $row['meta_value'] );
 
 			foreach ( $values as $value ) {
@@ -411,17 +445,14 @@ class Slug_Store {
 		}
 
 		$is_term = Translation_Repository::TYPE_TERM === $type;
-		$parent  = $is_term ? (int) get_term_field( 'parent', $object_id, $taxonomy ) : 0;
-		$taken   = self::matches( $slug, $language, $type, $taxonomy, false );
+		$parent  = $is_term ? get_term_field( 'parent', $object_id, $taxonomy ) : 0;
 
-		if ( $is_term ) {
-			$taken = array_filter(
-				$taken,
-				function ( $id ) use ( $parent, $taxonomy ) {
-					return (int) get_term_field( 'parent', $id, $taxonomy ) === $parent;
-				}
-			);
+		if ( is_wp_error( $parent ) ) {
+			return $parent;
 		}
+
+		$parent = (int) $parent;
+		$taken  = self::matches( $slug, $language, $type, $taxonomy, false, $is_term ? $parent : null );
 
 		// Lang is emptied so that Linguator's language filter does not hide other languages' objects.
 		if ( $is_term ) {
@@ -447,6 +478,10 @@ class Slug_Store {
 					'lang'           => '',
 				)
 			);
+		}
+
+		if ( is_wp_error( $canonical ) ) {
+			return $canonical;
 		}
 
 		foreach ( (array) $canonical as $id ) {
