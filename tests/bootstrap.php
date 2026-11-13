@@ -59,6 +59,12 @@ function lmat_test_reset_state() {
 		'cache'               => array(),
 		'post_names'          => array(),
 		'term_slugs'          => array(),
+		'permalink_structure' => array(
+			'product_base'   => '/prodotto',
+			'category_base'  => 'categoria-prodotto',
+			'tag_base'       => 'tag-prodotto',
+			'attribute_base' => '',
+		),
 	);
 }
 
@@ -1404,6 +1410,32 @@ function maybe_unserialize( $value ) {
 }
 
 /**
+ * Simulates WooCommerce's wc_get_permalink_structure(). Defined in both modes, like get_posts().
+ *
+ * @since 2.3.0
+ *
+ * @return array
+ */
+function wc_get_permalink_structure() {
+	return (array) lmat_test_get( 'permalink_structure', array() );
+}
+
+/**
+ * Simulates WordPress's get_post_field() for 'post_name', over the 'post_names' state.
+ *
+ * @since 2.3.0
+ *
+ * @param string $field Field name.
+ * @param int    $post  Post ID.
+ * @return string
+ */
+function get_post_field( $field, $post ) {
+	$names = (array) lmat_test_get( 'post_names', array() );
+
+	return 'post_name' === $field && isset( $names[ (int) $post ] ) ? $names[ (int) $post ] : '';
+}
+
+/**
  * Simulates WordPress's get_term_field() over the simulated terms.
  *
  * @since 2.3.0
@@ -1507,6 +1539,7 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-repository.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-store.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-resolver.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translated-object-types.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translations.php';
