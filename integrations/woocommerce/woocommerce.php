@@ -202,6 +202,8 @@ class Linguator_WooCommerce {
 		$slug_resolver      = new Slug_Resolver( $slug_store );
 		$this->slug_routing = new Slug_Routing( $slug_resolver, $slug_store );
 		$this->slug_routing->init();
+		$slug_links = new Slug_Links( $slug_resolver );
+		$slug_links->init();
 
 		if ( is_admin() ) {
 			$this->product_panel = new Admin\Product_Panel( $this->repository );
@@ -299,13 +301,9 @@ class Linguator_WooCommerce {
 			return $url;
 		}
 
-		$permalink = get_permalink( $product_id );
+		$link = ( new Slug_Resolver( new Slug_Store() ) )->permalink( 'post', $product_id, $language->slug );
 
-		if ( ! is_string( $permalink ) || '' === $permalink ) {
-			return $url;
-		}
-
-		return $this->switch_language_in_url( $permalink, $language, $url );
+		return '' === $link ? $url : $link;
 	}
 
 	/**
@@ -337,13 +335,9 @@ class Linguator_WooCommerce {
 			return $url;
 		}
 
-		$link = get_term_link( $term, $term->taxonomy );
+		$link = ( new Slug_Resolver( new Slug_Store() ) )->permalink( 'term', $term->term_id, $language->slug, $term->taxonomy );
 
-		if ( ! is_string( $link ) || '' === $link ) {
-			return $url;
-		}
-
-		return $this->switch_language_in_url( $link, $language, $url );
+		return '' === $link ? $url : $link;
 	}
 
 	/**

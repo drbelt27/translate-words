@@ -50,6 +50,31 @@ class Slug_Store {
 	}
 
 	/**
+	 * Primes WordPress's meta cache for a catalogue or term loop in one batch.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param int[]  $object_ids Post or term IDs.
+	 * @param string $language   Language slug (the cache contains all languages).
+	 * @param string $type       Post or term.
+	 * @return void
+	 */
+	public static function prime( array $object_ids, $language, $type = Translation_Repository::TYPE_POST ) {
+		$object_ids = array_values( array_unique( array_map( 'intval', $object_ids ) ) );
+
+		if ( empty( $object_ids ) ) {
+			return;
+		}
+
+		if ( Translation_Repository::TYPE_TERM === $type ) {
+			update_termmeta_cache( $object_ids );
+			return;
+		}
+
+		update_postmeta_cache( $object_ids );
+	}
+
+	/**
 	 * Stores an object's slug in a language and keeps the previous one as superseded.
 	 *
 	 * @since 2.3.0

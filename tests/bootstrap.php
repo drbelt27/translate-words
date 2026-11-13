@@ -40,6 +40,7 @@ function lmat_test_reset_state() {
 		'post_meta'           => array(),
 		'term_meta'           => array(),
 		'primed_posts'        => array(),
+		'post_prime_calls'    => 0,
 		'primed_terms'        => array(),
 		'is_admin'            => false,
 		'doing_ajax'          => false,
@@ -358,6 +359,7 @@ function delete_term_meta( $id, $key ) {
  * @return true
  */
 function update_postmeta_cache( $ids ) {
+	lmat_test_set( 'post_prime_calls', lmat_test_get( 'post_prime_calls', 0 ) + 1 );
 	lmat_test_set( 'primed_posts', array_merge( (array) lmat_test_get( 'primed_posts', array() ), array_map( 'intval', (array) $ids ) ) );
 
 	return true;
@@ -667,7 +669,7 @@ function is_front_page() {
 function get_permalink( $post_id = 0 ) {
 	$permalinks = (array) lmat_test_get( 'permalinks', array() );
 
-	return array_key_exists( (int) $post_id, $permalinks ) ? $permalinks[ (int) $post_id ] : false;
+	return array_key_exists( (int) $post_id, $permalinks ) ? apply_filters( 'post_type_link', $permalinks[ (int) $post_id ], new Lmat_Test_Post( $post_id ) ) : false;
 }
 
 /**
@@ -1721,6 +1723,7 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-reposit
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-store.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-resolver.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-routing.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-links.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translated-object-types.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translations.php';
@@ -1788,7 +1791,7 @@ function get_term_link( $term, $taxonomy = '' ) {
 	$links = (array) lmat_test_get( 'term_links', array() );
 	$id    = is_object( $term ) ? (int) $term->term_id : (int) $term;
 
-	return isset( $links[ $id ] ) ? $links[ $id ] : false;
+	return isset( $links[ $id ] ) ? apply_filters( 'term_link', $links[ $id ], $term, $taxonomy ) : false;
 }
 
 /**

@@ -48,6 +48,20 @@ final class Slug_Resolver {
 	 */
 	private $canonical_under_prefix;
 
+	/** @var bool Whether a canonical URL is being read before applying translated links. */
+	private static $reading_canonical = false;
+
+	/**
+	 * Allows outbound link filters to leave the canonical URL alone while permalink() reads it.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return bool
+	 */
+	public static function reading_canonical() {
+		return self::$reading_canonical;
+	}
+
 	/**
 	 * Constructor.
 	 *
@@ -78,12 +92,33 @@ final class Slug_Resolver {
 	 */
 	public function permalink( $type, $object_id, $language, $taxonomy = '' ) {
 		$object_id = (int) $object_id;
-		$url       = Translation_Repository::TYPE_TERM === $type ? get_term_link( $object_id, $taxonomy ) : get_permalink( $object_id );
+		self::$reading_canonical = true;
+		try {
+			$url = Translation_Repository::TYPE_TERM === $type ? get_term_link( $object_id, $taxonomy ) : get_permalink( $object_id );
+		} finally {
+			self::$reading_canonical = false;
+		}
 
 		if ( ! is_string( $url ) || '' === $url ) {
 			return '';
 		}
 
+		return $this->from_url( $url, $type, $object_id, $language, $taxonomy );
+	}
+
+	/**
+	 * Translates an already supplied canonical URL without reading a permalink inside its filter.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $url       Canonical URL.
+	 * @param string $type      Post or term.
+	 * @param int    $object_id Object ID.
+	 * @param string $language  Target language slug.
+	 * @param string $taxonomy  Term taxonomy.
+	 * @return string
+	 */
+	public function from_url( $url, $type, $object_id, $language, $taxonomy = '' ) {
 		$url = $this->switch_language( $url, $language );
 
 		return $this->is_default( $language ) ? $url : $this->translate_path( $url, $type, $object_id, $language, $taxonomy );
