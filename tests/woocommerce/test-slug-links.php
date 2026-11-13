@@ -168,8 +168,15 @@ class Slug_Links_Test extends TestCase {
 		lmat_test_set( 'is_product_tax', 'product_cat' );
 		lmat_test_set( 'queried_term', new WP_Term( 9, 'product_cat' ) );
 		lmat_test_set( 'is_paged', true );
+		lmat_test_set( 'term_slugs', array( 9 => array( 'slug' => 'abiti', 'taxonomy' => 'product_cat', 'parent' => 0 ) ) );
+		lmat_test_set( 'term_links', array( 9 => 'https://example.test/categoria/abiti/' ) );
+		Slug_Store::set( 9, 'de', 'kleider', 'term', 'product_cat' );
 
+		// Page 2 keeps the URL SEOPress computed; it must not collapse to the translated page-1 archive URL.
 		$this->assertSame( 'https://example.test/de/categoria/abiti/page/2/', $this->links()->canonical_url( 'https://example.test/de/categoria/abiti/page/2/' ) );
+
+		lmat_test_set( 'is_paged', false );
+		$this->assertSame( 'https://example.test/de/categoria/kleider/', $this->links()->canonical_url( 'https://example.test/de/categoria/abiti/' ) );
 	}
 
 	public function test_sitemap_lists_one_translated_url_per_language_never_both_forms() {

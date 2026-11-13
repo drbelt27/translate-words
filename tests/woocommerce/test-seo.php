@@ -173,7 +173,7 @@ class Seo_Test extends TestCase {
 	 *
 	 * @return void
 	 */
-	public function test_json_ld_product_url_and_og_url_are_translated() {
+	public function test_canonical_and_og_url_tags_carry_the_translated_url() {
 		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
 		lmat_test_set( 'curlang', 'de' );
 		lmat_test_set( 'is_product', true );

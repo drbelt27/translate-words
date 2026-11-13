@@ -195,7 +195,7 @@ class Linguator_WooCommerce {
 		$this->term_translations = new Term_Translations( $this->repository, $this->gate, $this->frontend );
 		$this->term_translations->init();
 
-		$slug_store        = new Slug_Store();
+		$slug_store         = new Slug_Store();
 		$slug_resolver      = new Slug_Resolver( $slug_store );
 		$this->slug_routing = new Slug_Routing( $slug_resolver, $slug_store );
 		$this->slug_routing->init();

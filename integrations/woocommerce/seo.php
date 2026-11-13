@@ -100,7 +100,7 @@ class Seo {
 	 * @param Frontend               $frontend   Language helper.
 	 * @param Slug_Links|null        $links      Translated URLs; canonical and og:url are left alone without it.
 	 */
-	public function __construct( Translation_Repository $repository, Context_Gate $gate, Frontend $frontend, Slug_Links $links = null ) {
+	public function __construct( Translation_Repository $repository, Context_Gate $gate, Frontend $frontend, ?Slug_Links $links = null ) {
 		$this->repository = $repository;
 		$this->gate       = $gate;
 		$this->frontend   = $frontend;
@@ -129,6 +129,9 @@ class Seo {
 
 	/**
 	 * Points SEOPress's `<link rel="canonical">` at the translated URL.
+	 *
+	 * On shared products and terms this overrides a manual per-object SEOPress canonical, because that
+	 * field is shared across languages and would point every language at one URL.
 	 *
 	 * @since 2.3.0
 	 *
