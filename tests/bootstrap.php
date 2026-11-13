@@ -56,6 +56,9 @@ function lmat_test_reset_state() {
 		'post_types'          => array(),
 		'cart_items'          => array(),
 		'product_attributes'  => array(),
+		'cache'               => array(),
+		'post_names'          => array(),
+		'term_slugs'          => array(),
 	);
 }
 
@@ -193,6 +196,18 @@ function has_filter( $hook_name, $callback = false ) {
 }
 
 /**
+ * Wraps a meta value the way get_post_meta() returns every key of an object: as a list of values.
+ *
+ * @since 2.3.0
+ *
+ * @param mixed $value Meta value.
+ * @return array
+ */
+function lmat_test_wrap( $value ) {
+	return array( $value );
+}
+
+/**
  * Reads one simulated meta value.
  *
  * @since 2.3.0
@@ -205,6 +220,10 @@ function has_filter( $hook_name, $callback = false ) {
  */
 function lmat_test_get_meta( $store, $id, $key, $single ) {
 	$meta = (array) lmat_test_get( $store, array() );
+
+	if ( '' === $key ) {
+		return array_map( 'lmat_test_wrap', isset( $meta[ (int) $id ] ) ? $meta[ (int) $id ] : array() );
+	}
 
 	if ( ! isset( $meta[ (int) $id ][ $key ] ) ) {
 		return $single ? '' : array();
@@ -1012,6 +1031,10 @@ if ( ! getenv( 'LMAT_TEST_WITHOUT_WOOCOMMERCE' ) ) {
  * @return int[]
  */
 function get_posts( $args = array() ) {
+	if ( isset( $args['name'] ) ) {
+		return array_map( 'intval', array_keys( (array) lmat_test_get( 'post_names', array() ), $args['name'], true ) );
+	}
+
 	return (array) lmat_test_get( 'product_ids', array() );
 }
 
@@ -1274,10 +1297,200 @@ class Lmat_Test_Order_Item extends Lmat_Test_Order {
 	}
 }
 
+/**
+ * Simulates WordPress's wp_cache_get().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key   Cache key.
+ * @param string $group Cache group.
+ * @return mixed False when missing.
+ */
+function wp_cache_get( $key, $group = '' ) {
+	$cache = (array) lmat_test_get( 'cache', array() );
+
+	return isset( $cache[ $group ][ $key ] ) ? $cache[ $group ][ $key ] : false;
+}
+
+/**
+ * Simulates WordPress's wp_cache_set().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key   Cache key.
+ * @param mixed  $value Value to cache.
+ * @param string $group Cache group.
+ * @return true
+ */
+function wp_cache_set( $key, $value, $group = '' ) {
+	$cache                    = (array) lmat_test_get( 'cache', array() );
+	$cache[ $group ][ $key ] = $value;
+	lmat_test_set( 'cache', $cache );
+
+	return true;
+}
+
+/**
+ * Simulates WordPress's wp_cache_delete().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key   Cache key.
+ * @param string $group Cache group.
+ * @return true
+ */
+function wp_cache_delete( $key, $group = '' ) {
+	$cache = (array) lmat_test_get( 'cache', array() );
+	unset( $cache[ $group ][ $key ] );
+	lmat_test_set( 'cache', $cache );
+
+	return true;
+}
+
+/**
+ * Simulates WordPress's get_option().
+ *
+ * @since 2.3.0
+ *
+ * @param string $name          Option name.
+ * @param mixed  $default_value Value when the option is missing.
+ * @return mixed
+ */
+function get_option( $name, $default_value = false ) {
+	$options = (array) lmat_test_get( 'options', array() );
+
+	return array_key_exists( $name, $options ) ? $options[ $name ] : $default_value;
+}
+
+/**
+ * Simulates WordPress's update_option().
+ *
+ * @since 2.3.0
+ *
+ * @param string $name  Option name.
+ * @param mixed  $value Option value.
+ * @return true
+ */
+function update_option( $name, $value ) {
+	$options          = (array) lmat_test_get( 'options', array() );
+	$options[ $name ] = $value;
+	lmat_test_set( 'options', $options );
+
+	return true;
+}
+
+/**
+ * Simulates WordPress's maybe_unserialize(): the simulated meta store keeps arrays as they are.
+ *
+ * @since 2.3.0
+ *
+ * @param mixed $value Stored value.
+ * @return mixed
+ */
+function maybe_unserialize( $value ) {
+	return $value;
+}
+
+/**
+ * Simulates WordPress's get_term_field() over the simulated terms.
+ *
+ * @since 2.3.0
+ *
+ * @param string $field    Field name.
+ * @param int    $term     Term ID.
+ * @param string $taxonomy Taxonomy, unused by the stub.
+ * @return mixed
+ */
+function get_term_field( $field, $term, $taxonomy = '' ) {
+	$terms = (array) lmat_test_get( 'term_slugs', array() );
+
+	return isset( $terms[ (int) $term ][ $field ] ) ? $terms[ (int) $term ][ $field ] : ( 'parent' === $field ? 0 : '' );
+}
+
+/**
+ * Simulates WordPress's get_terms() for the slug lookups of the slug store.
+ *
+ * @since 2.3.0
+ *
+ * @param array $args Supports taxonomy, slug and parent.
+ * @return int[] Matching term IDs.
+ */
+function get_terms( $args = array() ) {
+	$ids = array();
+
+	foreach ( (array) lmat_test_get( 'term_slugs', array() ) as $id => $term ) {
+		if ( $term['taxonomy'] === $args['taxonomy'] && $term['slug'] === $args['slug']
+			&& ( ! isset( $args['parent'] ) || (int) $term['parent'] === (int) $args['parent'] ) ) {
+			$ids[] = (int) $id;
+		}
+	}
+
+	return $ids;
+}
+
+if ( ! defined( 'ARRAY_A' ) ) {
+	define( 'ARRAY_A', 'ARRAY_A' );
+}
+
+/**
+ * Minimal $wpdb stand-in: answers the slug store's meta lookups from the simulated meta stores.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Wpdb {
+	/**
+	 * Post meta table name.
+	 *
+	 * @var string
+	 */
+	public $postmeta = 'wp_postmeta';
+
+	/**
+	 * Term meta table name.
+	 *
+	 * @var string
+	 */
+	public $termmeta = 'wp_termmeta';
+
+	/**
+	 * Inlines a single %s placeholder.
+	 *
+	 * @param string $query Query with one %s.
+	 * @param string $value Value.
+	 * @return string
+	 */
+	public function prepare( $query, $value ) {
+		return str_replace( '%s', "'" . $value . "'", $query );
+	}
+
+	/**
+	 * Returns id/meta_value rows for a "FROM <table> WHERE meta_key = '<key>'" query.
+	 *
+	 * @param string $query  Prepared query.
+	 * @param string $output Ignored.
+	 * @return array[]
+	 */
+	public function get_results( $query, $output = ARRAY_A ) {
+		preg_match( "/FROM (\w+) WHERE meta_key = '([^']*)'/", $query, $m );
+
+		$rows = array();
+		foreach ( (array) lmat_test_get( $m[1] === $this->termmeta ? 'term_meta' : 'post_meta', array() ) as $id => $meta ) {
+			if ( isset( $meta[ $m[2] ] ) ) {
+				$rows[] = array( 'id' => $id, 'meta_value' => $meta[ $m[2] ] );
+			}
+		}
+
+		return $rows;
+	}
+}
+
+$GLOBALS['wpdb'] = new Lmat_Test_Wpdb();
+
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/context-gate.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-repository.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-store.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translated-object-types.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translations.php';
