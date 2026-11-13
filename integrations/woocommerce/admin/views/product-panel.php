@@ -31,11 +31,11 @@ wp_nonce_field( Product_Panel::NONCE_ACTION, Product_Panel::NONCE_FIELD );
 
 <p>
 	<strong><?php echo esc_html__( 'Language', 'translate-words' ); ?>:</strong>
-	<?php foreach ( (array) $language_switch as $slug => $link ) : ?>
+	<?php foreach ( (array) $language_switch as $lang_slug => $link ) : ?>
 		<?php if ( ! empty( $link['current'] ) ) : ?>
-			<span aria-current="page"><?php echo esc_html( $slug ); ?></span>
+			<span aria-current="page"><?php echo esc_html( $lang_slug ); ?></span>
 		<?php else : ?>
-			<a href="<?php echo esc_url( $link['url'] ); ?>"><?php echo esc_html( $slug ); ?></a>
+			<a href="<?php echo esc_url( $link['url'] ); ?>"><?php echo esc_html( $lang_slug ); ?></a>
 		<?php endif; ?>
 	<?php endforeach; ?>
 </p>

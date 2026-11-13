@@ -314,7 +314,8 @@ class Product_Panel {
 		}
 
 		// The slug is not a repository field: it lives in Slug_Store, which enforces uniqueness.
-		if ( isset( $_POST['lmat_wc_slug'] ) ) {
+		// A failed text save (e.g. a stale revision) skips it, so a stale form cannot revert a newer slug.
+		if ( empty( $errors ) && isset( $_POST['lmat_wc_slug'] ) && $this->is_slug_language( $language ) ) {
 			$result = $this->save_slug( $post_id, $language, sanitize_title( wp_unslash( $_POST['lmat_wc_slug'] ) ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize_title() is the sanitizer.
 
 			if ( is_wp_error( $result ) ) {
@@ -325,6 +326,22 @@ class Product_Panel {
 		if ( ! empty( $errors ) ) {
 			set_transient( self::error_key(), implode( ' ', $errors ), 60 );
 		}
+	}
+
+	/**
+	 * Tells whether a language may carry a translated slug: configured, and not the default
+	 * language, which always uses the canonical slug.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $language Language slug.
+	 * @return bool
+	 */
+	protected function is_slug_language( $language ) {
+		$languages = function_exists( 'linguator_languages_list' ) ? (array) linguator_languages_list() : array();
+		$default   = function_exists( 'linguator_default_language' ) ? (string) linguator_default_language( 'slug' ) : '';
+
+		return in_array( $language, $languages, true ) && $language !== $default;
 	}
 
 	/**

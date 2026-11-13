@@ -1951,3 +1951,28 @@ function delete_transient( $key ) {
 
 	return true;
 }
+
+/**
+ * Simulates WordPress's wp_nonce_field(), printing the nonce input with the valid test nonce.
+ *
+ * @since 2.3.0
+ *
+ * @param string $action Nonce action.
+ * @param string $name   Field name.
+ * @return void
+ */
+function wp_nonce_field( $action = -1, $name = '_wpnonce' ) {
+	echo '<input type="hidden" name="' . esc_attr( $name ) . '" value="valid-nonce" />';
+}
+
+/**
+ * Simulates WordPress's esc_textarea().
+ *
+ * @since 2.3.0
+ *
+ * @param string $text Text to escape.
+ * @return string
+ */
+function esc_textarea( $text ) {
+	return htmlspecialchars( (string) $text, ENT_QUOTES );
+}

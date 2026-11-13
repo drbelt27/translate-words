@@ -157,12 +157,13 @@ class Product_Panel_Test extends TestCase {
 	 * @param string|null $slug     The slug field, null to leave it out of the payload.
 	 * @param string      $name     The translated name.
 	 * @param int         $revision The revision the form was rendered with.
+	 * @param string      $language The language being saved.
 	 * @return void
 	 */
-	protected function submit( $slug, $name = '', $revision = 0 ) {
+	protected function submit( $slug, $name = '', $revision = 0, $language = 'de' ) {
 		$_POST = array(
 			Product_Panel::NONCE_FIELD => 'valid-nonce',
-			'lmat_wc_language'         => 'de',
+			'lmat_wc_language'         => $language,
 			'lmat_wc_revision'         => (string) $revision,
 			'lmat_wc_fields'           => '' === $name ? array() : array( 'name' => $name ),
 		);
@@ -308,6 +309,55 @@ class Product_Panel_Test extends TestCase {
 
 		$this->assertSame( 'Taken.', $this->panel->pull_error() );
 		$this->assertSame( '', $this->panel->pull_error() );
+	}
+
+	/**
+	 * The slug input shows the stored slug. A language-switcher loop variable once shadowed the
+	 * slug and rendered the last language code, which every real save then posted back.
+	 *
+	 * @return void
+	 */
+	public function test_rendered_slug_input_holds_the_stored_slug_not_a_language_code() {
+		Slug_Store::set( 42, 'de', 'beitrag' );
+		$_GET['lmat_wc_language'] = 'de';
+
+		ob_start();
+		$this->panel->render( new Lmat_Test_Post( 42 ) );
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( 'name="lmat_wc_slug" value="beitrag"', $html );
+	}
+
+	/**
+	 * A slug is only saved for a configured, non-default language: the default language always
+	 * uses the canonical slug.
+	 *
+	 * @return void
+	 */
+	public function test_slug_is_not_saved_for_an_unknown_or_the_default_language() {
+		foreach ( array( 'xx', 'it' ) as $language ) {
+			$this->submit( 'mein-beitrag', '', 0, $language );
+
+			$this->assertSame( '', Slug_Store::get( 42, $language ), $language );
+			$this->assertSame( array(), array_filter( array_keys( (array) get_post_meta( 42 ) ), function ( $key ) {
+				return 0 === strpos( $key, Slug_Store::META_PREFIX );
+			} ), $language );
+		}
+	}
+
+	/**
+	 * A failed text save (here a stale revision) skips the slug write, so a stale form cannot
+	 * half-apply or revert a newer slug.
+	 *
+	 * @return void
+	 */
+	public function test_failed_text_save_skips_the_slug_write() {
+		Slug_Store::set( 42, 'de', 'neu' );
+
+		$this->submit( 'alt', 'Name', 5 ); // The stored revision is 0.
+
+		$this->assertSame( 'neu', Slug_Store::get( 42, 'de' ) );
+		$this->assertNotEmpty( get_transient( 'lmat_wc_panel_error_1' ) );
 	}
 
 	/**
