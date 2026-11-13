@@ -219,6 +219,9 @@ class Linguator_WooCommerce {
 		// integration advertises through the switcher and hreflang, and 301s it away. Cancel exactly that
 		// redirect; every other reason redirect_canonical() might fire is left alone.
 		add_filter( 'redirect_canonical', array( $this, 'keep_shared_object_url_from_redirecting' ), 10, 2 );
+
+		// Only a permanent delete frees a product's translated slugs: a trashed product keeps them so a restore cannot collide.
+		add_action( 'before_delete_post', array( $this, 'release_product_slugs' ), 10, 1 );
 	}
 
 	/**
@@ -338,6 +341,20 @@ class Linguator_WooCommerce {
 		$link = ( new Slug_Resolver( new Slug_Store() ) )->permalink( 'term', $term->term_id, $language->slug, $term->taxonomy );
 
 		return '' === $link ? $url : $link;
+	}
+
+	/**
+	 * Releases the translated slugs of a product that is being permanently deleted.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param int $post_id The post being deleted.
+	 * @return void
+	 */
+	public function release_product_slugs( $post_id ) {
+		if ( 'product' === get_post_type( $post_id ) ) {
+			Slug_Store::forget( (int) $post_id, Translation_Repository::TYPE_POST );
+		}
 	}
 
 	/**

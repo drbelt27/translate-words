@@ -62,6 +62,8 @@ function lmat_test_reset_state() {
 		'post_names'          => array(),
 		'term_slugs'          => array(),
 		'post_statuses'       => array(),
+		'transients'          => array(),
+		'user_caps'           => array(),
 		'permalink_structure' => array(
 			'product_base'   => '/prodotto',
 			'category_base'  => 'categoria-prodotto',
@@ -180,9 +182,9 @@ function apply_filters( $hook_name, $value ) {
  * @return void
  */
 function do_action( $hook_name ) {
-	$args = array_slice( func_get_args(), 1 );
-	array_unshift( $args, $hook_name, null );
-	call_user_func_array( 'apply_filters', $args );
+	$args  = array_slice( func_get_args(), 1 );
+	$value = array_shift( $args ); // The first action argument is the one a callback receives first, as in WordPress.
+	call_user_func_array( 'apply_filters', array_merge( array( $hook_name, $value ), $args ) );
 }
 
 /**
@@ -1864,4 +1866,88 @@ class WP_Term {
 		$this->name        = $name;
 		$this->description = $description;
 	}
+}
+
+/**
+ * Simulates WordPress's wp_verify_nonce(): only the literal 'valid-nonce' verifies.
+ *
+ * @since 2.3.0
+ *
+ * @param string $nonce  Nonce value.
+ * @param string $action Nonce action.
+ * @return int|false
+ */
+function wp_verify_nonce( $nonce, $action = -1 ) {
+	return 'valid-nonce' === $nonce ? 1 : false;
+}
+
+/**
+ * Simulates WordPress's current_user_can(): only the capabilities listed in 'user_caps' are held.
+ *
+ * @since 2.3.0
+ *
+ * @param string $capability Capability name.
+ * @return bool
+ */
+function current_user_can( $capability ) {
+	return in_array( $capability, (array) lmat_test_get( 'user_caps', array() ), true );
+}
+
+/**
+ * Simulates WordPress's get_current_user_id().
+ *
+ * @since 2.3.0
+ *
+ * @return int
+ */
+function get_current_user_id() {
+	return 1;
+}
+
+/**
+ * Simulates WordPress's set_transient().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key        Transient name.
+ * @param mixed  $value      Value.
+ * @param int    $expiration Unused by the stub.
+ * @return bool
+ */
+function set_transient( $key, $value, $expiration = 0 ) {
+	$transients         = (array) lmat_test_get( 'transients', array() );
+	$transients[ $key ] = $value;
+	lmat_test_set( 'transients', $transients );
+
+	return true;
+}
+
+/**
+ * Simulates WordPress's get_transient().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key Transient name.
+ * @return mixed False when not set.
+ */
+function get_transient( $key ) {
+	$transients = (array) lmat_test_get( 'transients', array() );
+
+	return isset( $transients[ $key ] ) ? $transients[ $key ] : false;
+}
+
+/**
+ * Simulates WordPress's delete_transient().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key Transient name.
+ * @return bool
+ */
+function delete_transient( $key ) {
+	$transients = (array) lmat_test_get( 'transients', array() );
+	unset( $transients[ $key ] );
+	lmat_test_set( 'transients', $transients );
+
+	return true;
 }
