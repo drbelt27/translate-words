@@ -34,6 +34,33 @@ class Slug_Store {
 	const CACHE_GROUP     = 'lmat_wc_slugs';
 
 	/**
+	 * Returns the languages that may carry translated slugs and bases: configured, and not the
+	 * default language, which always uses the canonical ones.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return string[] Language slugs.
+	 */
+	public static function slug_languages() {
+		$languages = function_exists( 'linguator_languages_list' ) ? (array) linguator_languages_list() : array();
+		$default   = function_exists( 'linguator_default_language' ) ? (string) linguator_default_language( 'slug' ) : '';
+
+		return array_values( array_diff( $languages, array( $default ) ) );
+	}
+
+	/**
+	 * Tells whether a language may carry a translated slug or base.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $language Language slug.
+	 * @return bool
+	 */
+	public static function is_slug_language( $language ) {
+		return in_array( $language, self::slug_languages(), true );
+	}
+
+	/**
 	 * Returns an object's current slug in a language.
 	 *
 	 * @since 2.3.0

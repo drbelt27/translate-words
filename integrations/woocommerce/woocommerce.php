@@ -205,9 +205,12 @@ class Linguator_WooCommerce {
 		$this->seo = new Seo( $this->repository, $this->gate, $this->frontend, $slug_links );
 		$this->seo->init();
 
+		( new Admin\Term_Slugs( $this->repository ) )->init(); // Releases slugs on every request; the screens are admin only.
+
 		if ( is_admin() ) {
 			$this->product_panel = new Admin\Product_Panel( $this->repository );
 			$this->product_panel->init();
+			( new Admin\Permalink_Bases() )->init();
 		}
 
 		// Same priority as the shop handler: each stands aside when another has already resolved a URL.

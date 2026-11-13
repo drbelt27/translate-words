@@ -35,6 +35,8 @@ add_action(
 		require_once __DIR__ . '/slug-routing.php';
 		require_once __DIR__ . '/slug-links.php';
 		require_once __DIR__ . '/admin/product-panel.php';
+		require_once __DIR__ . '/admin/term-slugs.php';
+		require_once __DIR__ . '/admin/permalink-bases.php';
 		require_once __DIR__ . '/woocommerce.php';
 
 		add_action( 'lmat_init', array( Linguator_Integrations::instance()->woocommerce = new Linguator_WooCommerce(), 'init' ) );

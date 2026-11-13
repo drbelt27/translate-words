@@ -240,6 +240,25 @@ class Coordinator_Test extends TestCase {
 		$integration->init();
 
 		$this->assertTrue( has_filter( 'add_meta_boxes' ) );
+		$this->assertTrue( has_filter( 'admin_menu' ) );
+		$this->assertTrue( has_filter( 'edited_term' ) );
+	}
+
+	/**
+	 * Term slugs are released on every request, but the screens exist only in the admin: a term is
+	 * also deleted over REST.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_releases_term_slugs_outside_the_admin_without_the_screens() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'delete_term' ) );
+		$this->assertFalse( has_filter( 'edited_term' ) );
+		$this->assertFalse( has_filter( 'admin_menu' ) );
 	}
 
 	/**

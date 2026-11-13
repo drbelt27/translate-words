@@ -61,6 +61,8 @@ function lmat_test_reset_state() {
 		'cache'               => array(),
 		'post_names'          => array(),
 		'term_slugs'          => array(),
+		'taxonomies'          => array( 'product_cat', 'product_tag', 'product_brand', 'pa_color' ),
+		'pages'               => array(),
 		'post_statuses'       => array(),
 		'transients'          => array(),
 		'user_caps'           => array(),
@@ -1407,9 +1409,23 @@ function get_option( $name, $default_value = false ) {
  * @return true
  */
 function update_option( $name, $value ) {
-	$options          = (array) lmat_test_get( 'options', array() );
+	$options = (array) lmat_test_get( 'options', array() );
+	$exists  = array_key_exists( $name, $options );
+	$old     = $exists ? $options[ $name ] : false;
+
+	if ( $exists && $old === $value ) {
+		return false;
+	}
+
 	$options[ $name ] = $value;
 	lmat_test_set( 'options', $options );
+
+	// Like WordPress: add_option_{name} for a new option, update_option_{name} when the value changed.
+	if ( $exists ) {
+		do_action( 'update_option_' . $name, $old, $value, $name );
+	} else {
+		do_action( 'add_option_' . $name, $name, $value );
+	}
 
 	return true;
 }
@@ -1668,6 +1684,72 @@ function get_terms( $args = array() ) {
 	return $ids;
 }
 
+/**
+ * Simulates WordPress's taxonomy_exists() from the 'taxonomies' state.
+ *
+ * @since 2.3.0
+ *
+ * @param string $taxonomy Taxonomy name.
+ * @return bool
+ */
+function taxonomy_exists( $taxonomy ) {
+	return in_array( $taxonomy, (array) lmat_test_get( 'taxonomies', array() ), true );
+}
+
+/**
+ * Simulates WordPress's get_taxonomies() in its 'names' shape.
+ *
+ * @since 2.3.0
+ *
+ * @param array  $args   Unused by the stub.
+ * @param string $output Unused by the stub.
+ * @return string[]
+ */
+function get_taxonomies( $args = array(), $output = 'names' ) {
+	return (array) lmat_test_get( 'taxonomies', array() );
+}
+
+/**
+ * Simulates WordPress's get_page_by_path() from the 'pages' state (path => true).
+ *
+ * @since 2.3.0
+ *
+ * @param string $path Page path.
+ * @return object|null
+ */
+function get_page_by_path( $path ) {
+	$pages = (array) lmat_test_get( 'pages', array() );
+
+	return isset( $pages[ $path ] ) ? new Lmat_Test_Post( 1 ) : null;
+}
+
+/**
+ * Simulates WordPress's add_options_page(), returning the hook suffix.
+ *
+ * @since 2.3.0
+ *
+ * @param string   $page_title Unused by the stub.
+ * @param string   $menu_title Unused by the stub.
+ * @param string   $capability Unused by the stub.
+ * @param string   $menu_slug  Menu slug.
+ * @param callable $callback   Unused by the stub.
+ * @return string
+ */
+function add_options_page( $page_title, $menu_title, $capability, $menu_slug, $callback = '' ) {
+	return 'settings_page_' . $menu_slug;
+}
+
+/**
+ * Simulates WordPress's submit_button().
+ *
+ * @since 2.3.0
+ *
+ * @return void
+ */
+function submit_button() {
+	echo '<input type="submit" class="button button-primary" value="Save Changes" />';
+}
+
 if ( ! defined( 'ARRAY_A' ) ) {
 	define( 'ARRAY_A', 'ARRAY_A' );
 }
@@ -1747,6 +1829,8 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/orders.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/term-translations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/seo.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/admin/product-panel.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/admin/term-slugs.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/admin/permalink-bases.php';
 
 /**
  * Returns the queried object ID for the current request.

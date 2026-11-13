@@ -338,10 +338,7 @@ class Product_Panel {
 	 * @return bool
 	 */
 	protected function is_slug_language( $language ) {
-		$languages = function_exists( 'linguator_languages_list' ) ? (array) linguator_languages_list() : array();
-		$default   = function_exists( 'linguator_default_language' ) ? (string) linguator_default_language( 'slug' ) : '';
-
-		return in_array( $language, $languages, true ) && $language !== $default;
+		return Slug_Store::is_slug_language( $language );
 	}
 
 	/**
