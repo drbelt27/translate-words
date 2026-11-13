@@ -92,11 +92,12 @@ final class Slug_Resolver {
 	 */
 	public function permalink( $type, $object_id, $language, $taxonomy = '' ) {
 		$object_id = (int) $object_id;
+		$previous                = self::$reading_canonical;
 		self::$reading_canonical = true;
 		try {
 			$url = Translation_Repository::TYPE_TERM === $type ? get_term_link( $object_id, $taxonomy ) : get_permalink( $object_id );
 		} finally {
-			self::$reading_canonical = false;
+			self::$reading_canonical = $previous;
 		}
 
 		if ( ! is_string( $url ) || '' === $url ) {

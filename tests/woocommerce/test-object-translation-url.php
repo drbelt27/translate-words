@@ -7,6 +7,8 @@
 
 use PHPUnit\Framework\TestCase;
 use Linguator\Integrations\woocommerce\Linguator_WooCommerce;
+use Linguator\Integrations\woocommerce\Slug_Links;
+use Linguator\Integrations\woocommerce\Slug_Resolver;
 use Linguator\Integrations\woocommerce\Slug_Store;
 
 class Object_Translation_Url_Test extends TestCase {
@@ -55,11 +57,13 @@ class Object_Translation_Url_Test extends TestCase {
 		lmat_test_set( 'queried_object_id', 42 );
 		lmat_test_set( 'curlang', 'de' );
 		lmat_test_set( 'post_names', array( 42 => 'open-day' ) );
+		lmat_test_set( 'post_types', array( 42 => 'product' ) );
 		lmat_test_set( 'permalinks', array( 42 => 'https://example.test/prodotto/open-day/' ) );
 		Slug_Store::set( 42, 'de', 'open-day-de' );
 		Slug_Store::set( 42, 'fr', 'jour-ouvert' );
 		Slug_Store::set_base( 'de', 'product', 'produkt' );
 		Slug_Store::set_base( 'fr', 'product', 'produit' );
+		( new Slug_Links( new Slug_Resolver( new Slug_Store() ) ) )->init(); // The outbound filters are live, as in production.
 
 		$this->assertSame( 'https://example.test/fr/produit/jour-ouvert/', $this->integration->product_translation_url( '', new Lmat_Test_Language( 'fr' ) ) );
 	}
@@ -129,6 +133,8 @@ class Object_Translation_Url_Test extends TestCase {
 		Slug_Store::set( 9, 'fr', 'vetements', 'term', 'product_cat' );
 		Slug_Store::set_base( 'de', 'category', 'kategorie' );
 		Slug_Store::set_base( 'fr', 'category', 'categorie' );
+		lmat_test_set( 'curlang', 'de' );
+		( new Slug_Links( new Slug_Resolver( new Slug_Store() ) ) )->init(); // The outbound filters are live, as in production.
 
 		$this->assertSame( 'https://example.test/fr/categorie/vetements/', $this->integration->term_archive_translation_url( '', new Lmat_Test_Language( 'fr' ) ) );
 	}
