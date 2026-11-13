@@ -114,6 +114,14 @@ class Linguator_WooCommerce {
 	protected $seo = null;
 
 	/**
+	 * Inbound translated URLs.
+	 *
+	 * @since 2.3.0
+	 * @var Slug_Routing|null
+	 */
+	protected $slug_routing = null;
+
+	/**
 	 * The admin-side entry panel for translated product text.
 	 *
 	 * @since 2.3.0
@@ -189,6 +197,11 @@ class Linguator_WooCommerce {
 
 		$this->seo = new Seo( $this->repository, $this->gate, $this->frontend );
 		$this->seo->init();
+
+		$slug_store         = new Slug_Store();
+		$slug_resolver      = new Slug_Resolver( $slug_store );
+		$this->slug_routing = new Slug_Routing( $slug_resolver, $slug_store );
+		$this->slug_routing->init();
 
 		if ( is_admin() ) {
 			$this->product_panel = new Admin\Product_Panel( $this->repository );
@@ -370,6 +383,10 @@ class Linguator_WooCommerce {
 	public function keep_shared_object_url_from_redirecting( $redirect_url, $requested_url ) {
 		if ( ! Shared_Mode::is_enabled() ) {
 			return $redirect_url;
+		}
+
+		if ( null !== $this->slug_routing && '' !== $this->slug_routing->redirect_url() ) {
+			return $this->slug_routing->redirect_url();
 		}
 
 		if ( ! $this->is_shared_object_request() ) {

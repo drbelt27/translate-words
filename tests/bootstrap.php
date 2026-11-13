@@ -1398,6 +1398,90 @@ function update_option( $name, $value ) {
 	return true;
 }
 
+/** Captures a redirect without terminating the isolated test process. */
+class Lmat_Test_Redirect extends RuntimeException {}
+
+/** Minimal main query for the router's hard 404 outcome. */
+class Lmat_Test_Query {
+	public $is_404 = false;
+	public function set_404() {
+		$this->is_404 = true;
+	}
+}
+
+/**
+ * Records a safe redirect and stops the handler like WordPress's following exit.
+ *
+ * @param string $url Target URL.
+ * @param int $status HTTP status.
+ * @return void
+ */
+function wp_safe_redirect( $url, $status = 302 ) {
+	lmat_test_set( 'safe_redirect', array( $url, $status ) );
+	throw new Lmat_Test_Redirect();
+}
+
+/**
+ * Records the HTTP status.
+ *
+ * @param int $status HTTP status.
+ * @return void
+ */
+function status_header( $status ) {
+	lmat_test_set( 'status_header', $status );
+}
+
+/** Sends no-cache headers (no output in the isolated harness). @return void */
+function nocache_headers() {}
+
+/**
+ * Simulates WordPress's home_url().
+ *
+ * @since 2.3.0
+ *
+ * @param string $path Path relative to the home URL.
+ * @return string
+ */
+function home_url( $path = '' ) {
+	return 'https://example.test/' . ltrim( (string) $path, '/' );
+}
+
+/**
+ * Simulates WordPress's trailingslashit().
+ *
+ * @since 2.3.0
+ *
+ * @param string $value Value to append a slash to.
+ * @return string
+ */
+function trailingslashit( $value ) {
+	return rtrim( (string) $value, '/\\' ) . '/';
+}
+
+/**
+ * Simulates WordPress's user_trailingslashit() for a permalink structure ending with a slash.
+ *
+ * @since 2.3.0
+ *
+ * @param string $value Value to append a slash to.
+ * @return string
+ */
+function user_trailingslashit( $value ) {
+	return trailingslashit( $value );
+}
+
+/**
+ * Simulates WordPress's flush_rewrite_rules() by counting the calls in the 'flushes' state.
+ *
+ * @since 2.3.0
+ *
+ * @param bool $hard Whether to update .htaccess, unused by the stub.
+ * @return void
+ */
+function flush_rewrite_rules( $hard = true ) {
+	lmat_test_set( 'flushes', (int) lmat_test_get( 'flushes', 0 ) + 1 );
+}
+
 /**
  * Simulates WordPress's maybe_unserialize(): the simulated meta store keeps arrays as they are.
  *
@@ -1555,6 +1639,7 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-repository.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-store.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-resolver.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-routing.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translated-object-types.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translations.php';

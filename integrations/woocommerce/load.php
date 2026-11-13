@@ -30,6 +30,9 @@ add_action(
 		require_once __DIR__ . '/orders.php';
 		require_once __DIR__ . '/term-translations.php';
 		require_once __DIR__ . '/seo.php';
+		require_once __DIR__ . '/slug-store.php';
+		require_once __DIR__ . '/slug-resolver.php';
+		require_once __DIR__ . '/slug-routing.php';
 		require_once __DIR__ . '/admin/product-panel.php';
 		require_once __DIR__ . '/woocommerce.php';
 
