@@ -1398,6 +1398,87 @@ function update_option( $name, $value ) {
 	return true;
 }
 
+/** Minimal REST controller base for the settings route. */
+abstract class WP_REST_Controller {
+	protected function get_fields_for_response( $request ) {
+		return array();
+	}
+}
+
+/** Minimal REST server constants. */
+class WP_REST_Server {
+	const EDITABLE = 'POST, PUT, PATCH';
+}
+
+/** Minimal REST request carrying body parameters. */
+class Lmat_Test_REST_Request {
+	private $params;
+	public function __construct( $params ) {
+		$this->params = $params;
+	}
+	public function get_json_params() {
+		return array();
+	}
+	public function get_params() {
+		return $this->params;
+	}
+}
+
+/**
+ * Returns the schema's editable args (the stub schema has no readonly fields).
+ *
+ * @param array  $schema Schema.
+ * @param string $method Method.
+ * @return array
+ */
+function rest_get_endpoint_args_for_schema( $schema, $method = '' ) {
+	return $schema;
+}
+
+/** @param string $field Field. @param array $fields Fields. @return bool */
+function rest_is_field_included( $field, $fields ) {
+	return true;
+}
+
+/** @param mixed $response Response. @return mixed */
+function rest_ensure_response( $response ) {
+	return $response;
+}
+
+/**
+ * Records deleted options in the 'deleted_options' state.
+ *
+ * @param string $name Option name.
+ * @return true
+ */
+function delete_option( $name ) {
+	$deleted   = (array) lmat_test_get( 'deleted_options', array() );
+	$deleted[] = $name;
+	lmat_test_set( 'deleted_options', $deleted );
+
+	return true;
+}
+
+/** @return false */
+function wp_next_scheduled( $hook ) {
+	return false;
+}
+
+/** @return true */
+function wp_schedule_event( $timestamp, $recurrence, $hook ) {
+	return true;
+}
+
+/** @return int */
+function wp_clear_scheduled_hook( $hook ) {
+	return 0;
+}
+
+/** @return false Not chosen. */
+function linguator_get_cpfm_opt_in_choice() {
+	return false;
+}
+
 /** Captures a redirect without terminating the isolated test process. */
 class Lmat_Test_Redirect extends RuntimeException {}
 

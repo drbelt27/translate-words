@@ -112,12 +112,17 @@ class Slug_Routing {
 	public function map_request( $query_vars ) {
 		$this->redirect_url = '';
 		$this->not_found    = false;
-		$query_vars         = $this->recover_unmatched_request( (array) $query_vars );
 		$segments           = $this->segments();
-		$language = empty( $segments ) ? '' : strtolower( $segments[0] );
-		$var      = $this->query_var( (array) $query_vars );
+		$language           = empty( $segments ) ? '' : $segments[0]; // Exact, like Linguator's own prefix rules.
 
-		if ( '' === $var || linguator_default_language( 'slug' ) === $language || ! in_array( $language, (array) linguator_languages_list(), true ) ) {
+		if ( linguator_default_language( 'slug' ) === $language || ! in_array( $language, (array) linguator_languages_list(), true ) ) {
+			return $query_vars;
+		}
+
+		$query_vars = $this->recover_mixed_case_base( (array) $query_vars, $segments, $language );
+		$var        = $this->query_var( $query_vars );
+
+		if ( '' === $var ) {
 			return $query_vars;
 		}
 
@@ -188,23 +193,30 @@ class Slug_Routing {
 	 * @return array
 	 */
 	public function rewrite_rules( $rules ) {
+		return $this->translated_rules( (array) $rules ) + (array) $rules;
+	}
+
+	/**
+	 * Returns only the rules this router adds for translated and superseded bases.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param array $rules Rewrite rules holding the canonical ones.
+	 * @return array
+	 */
+	private function translated_rules( $rules ) {
 		$new = array();
 
-		foreach ( (array) get_option( Slug_Store::BASES_OPTION, array() ) as $language => $types ) {
+		foreach ( array_keys( (array) get_option( Slug_Store::BASES_OPTION, array() ) ) as $language ) {
+			$language = (string) $language;
+
 			if ( linguator_default_language( 'slug' ) === $language ) {
 				continue; // Rule 4.
 			}
 
-			foreach ( Slug_Store::BASE_TYPES as $base_type ) {
-				$translated = $this->store::get_base( $language, $base_type );
-
-				if ( '' === $translated ) {
-					continue;
-				}
-
+			foreach ( $this->bases( $language ) as $base_type => $bases ) {
 				// A translated base maps to the canonical one, which the resolver returns as its slug.
-				$canonical = $this->resolver->resolve_base( $translated, $base_type, $language )['slug'];
-				$bases     = array_merge( array( $translated ), isset( $types['old'][ $base_type ] ) ? (array) $types['old'][ $base_type ] : array() );
+				$canonical = $this->resolver->resolve_base( $bases[0], $base_type, $language )['slug'];
 
 				foreach ( $rules as $key => $rule ) {
 					if ( '' === $canonical || ! is_string( $key ) || ! is_string( $rule ) || 0 !== strpos( $key, $canonical . '/' ) ) {
@@ -222,7 +234,31 @@ class Slug_Routing {
 			}
 		}
 
-		return $new + (array) $rules;
+		return $new;
+	}
+
+	/**
+	 * Returns a language's bases per base type: the translated one first, then the superseded ones.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $language Language slug.
+	 * @return array<string,string[]> Only the base types that have a translated base.
+	 */
+	private function bases( $language ) {
+		$option = (array) get_option( Slug_Store::BASES_OPTION, array() );
+		$old    = isset( $option[ $language ]['old'] ) ? (array) $option[ $language ]['old'] : array();
+		$bases  = array();
+
+		foreach ( Slug_Store::BASE_TYPES as $base_type ) {
+			$translated = $this->store::get_base( $language, $base_type );
+
+			if ( '' !== $translated ) {
+				$bases[ $base_type ] = array_merge( array( $translated ), isset( $old[ $base_type ] ) ? (array) $old[ $base_type ] : array() );
+			}
+		}
+
+		return $bases;
 	}
 
 	/**
@@ -285,22 +321,46 @@ class Slug_Routing {
 	}
 
 	/**
-	 * Re-parses a 404 whose rewrite match failed only because of case or percent-encoding.
+	 * Re-parses a request whose translated base differs only by case, which WordPress's case-sensitive
+	 * rules send to a catch-all. Anything else, including other 404s, is returned untouched.
 	 *
 	 * @since 2.3.0
 	 *
-	 * @param array $query_vars Query vars from WordPress.
+	 * @param array    $query_vars Query vars from WordPress.
+	 * @param string[] $segments   Request path segments.
+	 * @param string   $language   Language of the prefix.
 	 * @return array
 	 */
-	private function recover_unmatched_request( $query_vars ) {
-		if ( array( 'error' => '404' ) !== $query_vars ) {
-			return $query_vars;
+	private function recover_mixed_case_base( $query_vars, $segments, $language ) {
+		foreach ( $this->bases( $language ) as $bases ) {
+			foreach ( $bases as $base ) {
+				$length    = substr_count( $base, '/' ) + 1;
+				$requested = implode( '/', array_slice( $segments, 1, $length ) );
+
+				if ( $requested !== $base && strtolower( $requested ) === $base ) {
+					$path = implode( '/', array_merge( array( $language, $base ), array_slice( $segments, 1 + $length ) ) );
+
+					return $this->match( $this->translated_rules( (array) get_option( 'rewrite_rules', array() ) ), $path, $query_vars );
+				}
+			}
 		}
 
-		$path = strtolower( rawurldecode( implode( '/', $this->segments() ) ) );
+		return $query_vars;
+	}
 
-		foreach ( $this->rewrite_rules( (array) get_option( 'rewrite_rules', array() ) ) as $match => $query ) {
-			if ( ! is_string( $match ) || ! is_string( $query ) || ! preg_match( '#^' . $match . '#', $path, $matches ) ) {
+	/**
+	 * Matches a path against rewrite rules the way WP::parse_request() does: first rule wins, raw then decoded.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param array  $rules      Rewrite rules.
+	 * @param string $path       Request path.
+	 * @param array  $query_vars Returned when no rule matches.
+	 * @return array
+	 */
+	private function match( $rules, $path, $query_vars ) {
+		foreach ( $rules as $match => $query ) {
+			if ( ! preg_match( '#^' . $match . '#', $path, $matches ) && ! preg_match( '#^' . $match . '#', urldecode( $path ), $matches ) ) {
 				continue;
 			}
 
@@ -314,7 +374,7 @@ class Slug_Routing {
 			);
 			parse_str( $query, $vars );
 
-			return $vars;
+			return array_filter( $vars, 'strlen' );
 		}
 
 		return $query_vars;
