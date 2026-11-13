@@ -165,7 +165,15 @@ class Linguator_Multilingual_Sitemaps_Provider extends WP_Sitemaps_Provider {
 		}
 
 		foreach ( array_keys( $object_subtypes ) as $object_subtype_name ) {
-			if ( call_user_func( $func, $object_subtype_name ) ) {
+			/**
+			 * Filters whether a sitemap subtype is split by language. Shared WooCommerce objects are not
+			 * translated types, but each language still lists its own URLs.
+			 *
+			 * @param bool   $per_language Whether the subtype is a translated one.
+			 * @param string $provider     Provider name, 'posts' or 'taxonomies'.
+			 * @param string $subtype      Post type or taxonomy name.
+			 */
+			if ( apply_filters( 'lmat_sitemap_subtype_per_language', call_user_func( $func, $object_subtype_name ), $this->provider->name, $object_subtype_name ) ) {
 				foreach ( $this->model->get_languages_list( array( 'fields' => 'slug' ) ) as $language ) {
 					$sitemap_data[] = $this->get_sitemap_data( $object_subtype_name, $language );
 				}

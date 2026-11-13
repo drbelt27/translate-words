@@ -195,15 +195,15 @@ class Linguator_WooCommerce {
 		$this->term_translations = new Term_Translations( $this->repository, $this->gate, $this->frontend );
 		$this->term_translations->init();
 
-		$this->seo = new Seo( $this->repository, $this->gate, $this->frontend );
-		$this->seo->init();
-
-		$slug_store         = new Slug_Store();
+		$slug_store        = new Slug_Store();
 		$slug_resolver      = new Slug_Resolver( $slug_store );
 		$this->slug_routing = new Slug_Routing( $slug_resolver, $slug_store );
 		$this->slug_routing->init();
 		$slug_links = new Slug_Links( $slug_resolver );
 		$slug_links->init();
+
+		$this->seo = new Seo( $this->repository, $this->gate, $this->frontend, $slug_links );
+		$this->seo->init();
 
 		if ( is_admin() ) {
 			$this->product_panel = new Admin\Product_Panel( $this->repository );

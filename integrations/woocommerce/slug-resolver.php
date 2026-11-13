@@ -267,7 +267,7 @@ final class Slug_Resolver {
 	 * @param int    $object_id Post or term ID.
 	 * @return bool
 	 */
-	private function is_public( $type, $object_id ) {
+	public function is_public( $type, $object_id ) {
 		return Translation_Repository::TYPE_TERM === $type || 'publish' === get_post_status( $object_id );
 	}
 

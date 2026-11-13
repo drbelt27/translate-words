@@ -9,6 +9,9 @@ use PHPUnit\Framework\TestCase;
 use Linguator\Integrations\woocommerce\Context_Gate;
 use Linguator\Integrations\woocommerce\Frontend;
 use Linguator\Integrations\woocommerce\Seo;
+use Linguator\Integrations\woocommerce\Slug_Links;
+use Linguator\Integrations\woocommerce\Slug_Resolver;
+use Linguator\Integrations\woocommerce\Slug_Store;
 use Linguator\Integrations\woocommerce\Translation_Repository;
 
 class Seo_Test extends TestCase {
@@ -166,6 +169,35 @@ class Seo_Test extends TestCase {
 	}
 
 	/**
+	 * SEOPress prints its canonical and og:url as HTML; both must carry the translated URL.
+	 *
+	 * @return void
+	 */
+	public function test_json_ld_product_url_and_og_url_are_translated() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+		lmat_test_set( 'curlang', 'de' );
+		lmat_test_set( 'is_product', true );
+		lmat_test_set( 'queried_object_id', 42 );
+		lmat_test_set( 'post_types', array( 42 => 'product' ) );
+		lmat_test_set( 'post_names', array( 42 => 'open-day' ) );
+		lmat_test_set( 'permalinks', array( 42 => 'https://example.test/prodotto/open-day/' ) );
+		Slug_Store::set( 42, 'de', 'open-day-de' );
+		$seo = new Seo( $this->repository, $this->gate, new Frontend( $this->repository, $this->gate ), new Slug_Links( new Slug_Resolver( new Slug_Store() ) ) );
+
+		$this->assertSame(
+			'<link rel="canonical" href="https://example.test/de/prodotto/open-day-de/">',
+			$seo->canonical( '<link rel="canonical" href="https://example.test/de/prodotto/open-day/">' )
+		);
+		$this->assertSame(
+			'<meta property="og:url" content="https://example.test/de/prodotto/open-day-de/">',
+			$seo->og_url( '<meta property="og:url" content="https://example.test/de/prodotto/open-day/">' )
+		);
+
+		lmat_test_set( 'is_product', false );
+		$this->assertSame( '<link rel="canonical" href="https://example.test/blog/">', $seo->canonical( '<link rel="canonical" href="https://example.test/blog/">' ) );
+	}
+
+	/**
 	 * With SEOPress present the four filters are registered.
 	 *
 	 * @runInSeparateProcess
@@ -185,5 +217,7 @@ class Seo_Test extends TestCase {
 		$this->assertTrue( has_filter( 'seopress_titles_desc' ) );
 		$this->assertTrue( has_filter( 'seopress_social_og_title' ) );
 		$this->assertTrue( has_filter( 'seopress_social_og_desc' ) );
+		$this->assertTrue( has_filter( 'seopress_titles_canonical' ) );
+		$this->assertTrue( has_filter( 'seopress_social_og_url' ) );
 	}
 }

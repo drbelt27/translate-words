@@ -6,6 +6,7 @@
  */
 
 use PHPUnit\Framework\TestCase;
+use Linguator\Integrations\woocommerce\Linguator_WooCommerce;
 use Linguator\Integrations\woocommerce\Slug_Links;
 use Linguator\Integrations\woocommerce\Slug_Resolver;
 use Linguator\Integrations\woocommerce\Slug_Store;
@@ -110,5 +111,108 @@ class Slug_Links_Test extends TestCase {
 		$this->assertSame( $posts, $links->prime_loop( $posts ) );
 		$this->assertSame( array( 5, 6, 7 ), lmat_test_get( 'primed_posts' ) );
 		$this->assertSame( 1, lmat_test_get( 'post_prime_calls' ) );
+	}
+
+	private function shared_product_in_three_languages() {
+		Slug_Store::set( 5, 'de', 'open-day-de' );
+		Slug_Store::set( 5, 'fr', 'jour-ouvert' );
+		Slug_Store::set_base( 'de', 'product', 'produkt' );
+		Slug_Store::set_base( 'fr', 'product', 'produit' );
+		lmat_test_set( 'is_product', true );
+		lmat_test_set( 'queried_object_id', 5 );
+	}
+
+	public function test_hreflang_alternates_are_translated_urls_and_reciprocal() {
+		$this->shared_product_in_three_languages();
+		$this->links()->init();
+		$integration = new Linguator_WooCommerce();
+		$pages       = array();
+
+		foreach ( array( 'it', 'de', 'fr', 'en' ) as $current ) {
+			lmat_test_set( 'curlang', $current );
+			$alternates = array();
+
+			foreach ( array( 'it', 'de', 'fr', 'en' ) as $target ) {
+				$alternates[ $target ] = $integration->product_translation_url( '', new Lmat_Test_Language( $target ) );
+			}
+
+			$pages[ $current ] = $this->links()->hreflang( $alternates );
+		}
+
+		$this->assertSame( $pages['it'], $pages['de'] ); // Every page of the set lists the same URLs, so each pair is reciprocal.
+		$this->assertSame( $pages['it'], $pages['fr'] );
+		$this->assertSame( $pages['it'], $pages['en'] );
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/', $pages['de']['de'] );
+		$this->assertSame( 'https://example.test/fr/produit/jour-ouvert/', $pages['de']['fr'] );
+		$this->assertSame( 'https://example.test/en/prodotto/open-day/', $pages['de']['en'] );
+		$this->assertSame( 'https://example.test/prodotto/open-day/', $pages['de']['x-default'] );
+	}
+
+	public function test_canonical_is_self_referencing_on_the_translated_url() {
+		$this->shared_product_in_three_languages();
+		lmat_test_set( 'curlang', 'de' );
+
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/', $this->links()->canonical_url( 'https://example.test/de/prodotto/open-day/' ) );
+		lmat_test_set( 'curlang', 'it' );
+		$this->assertSame( 'https://example.test/prodotto/open-day/', $this->links()->canonical_url( 'https://example.test/prodotto/open-day/' ) );
+	}
+
+	public function test_canonical_never_leaks_a_translated_slug_of_an_unpublished_product_or_a_paged_archive() {
+		$this->shared_product_in_three_languages();
+		lmat_test_set( 'curlang', 'de' );
+		lmat_test_set( 'post_statuses', array( 5 => 'draft' ) );
+
+		$this->assertSame( 'https://example.test/de/prodotto/open-day/', $this->links()->canonical_url( 'https://example.test/de/prodotto/open-day/' ) );
+
+		lmat_test_set( 'is_product', false );
+		lmat_test_set( 'is_product_tax', 'product_cat' );
+		lmat_test_set( 'queried_term', new WP_Term( 9, 'product_cat' ) );
+		lmat_test_set( 'is_paged', true );
+
+		$this->assertSame( 'https://example.test/de/categoria/abiti/page/2/', $this->links()->canonical_url( 'https://example.test/de/categoria/abiti/page/2/' ) );
+	}
+
+	public function test_sitemap_lists_one_translated_url_per_language_never_both_forms() {
+		$this->shared_product_in_three_languages();
+		$links = $this->links();
+		$locs  = array();
+
+		foreach ( array( 'it', 'de', 'fr' ) as $language ) {
+			lmat_test_set( 'curlang', $language );
+			$entry         = $links->sitemap_entry( array( 'loc' => 'https://example.test/prodotto/open-day/' ), new Lmat_Test_Post( 5 ) );
+			$locs[ $language ] = $entry['loc'];
+		}
+
+		$this->assertSame(
+			array(
+				'it' => 'https://example.test/prodotto/open-day/',
+				'de' => 'https://example.test/de/produkt/open-day-de/',
+				'fr' => 'https://example.test/fr/produit/jour-ouvert/',
+			),
+			$locs
+		);
+		$this->assertTrue( $links->sitemap_per_language( false, 'posts', 'product' ) );
+		$this->assertTrue( $links->sitemap_per_language( false, 'taxonomies', 'product_cat' ) );
+		$this->assertFalse( $links->sitemap_per_language( false, 'posts', 'page' ) );
+		lmat_test_set( 'curlang', 'de' );
+		lmat_test_set( 'term_slugs', array( 9 => array( 'slug' => 'abiti', 'taxonomy' => 'product_cat', 'parent' => 0 ) ) );
+		lmat_test_set( 'term_links', array( 9 => 'https://example.test/categoria/abiti/' ) );
+		Slug_Store::set( 9, 'de', 'kleider', 'term', 'product_cat' );
+		$this->assertSame( 'https://example.test/de/categoria/kleider/', $links->sitemap_url( 'https://example.test/categoria/abiti/', new WP_Term( 9, 'product_cat' ) ) );
+	}
+
+	public function test_json_ld_product_url_is_translated() {
+		$this->shared_product_in_three_languages();
+		lmat_test_set( 'curlang', 'de' );
+		$markup = array(
+			'@type' => 'Product',
+			'@id'   => 'https://example.test/prodotto/open-day/#product',
+			'url'   => 'https://example.test/prodotto/open-day/',
+		);
+
+		$markup = $this->links()->schema_url( $markup, new Lmat_Test_Product( 5 ) );
+
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/', $markup['url'] );
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/#product', $markup['@id'] );
 	}
 }

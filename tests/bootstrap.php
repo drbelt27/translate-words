@@ -27,6 +27,7 @@ function lmat_test_reset_state() {
 		'is_shop'             => false,
 		'is_front_page'       => false,
 		'is_product'          => false,
+		'is_paged'            => false,
 		'is_product_tax'      => false,
 		'queried_object_id'   => 0,
 		'queried_term'        => null,
@@ -656,6 +657,17 @@ function is_wp_error( $thing ) {
  */
 function is_front_page() {
 	return (bool) lmat_test_get( 'is_front_page', false );
+}
+
+/**
+ * Simulates WordPress's is_paged().
+ *
+ * @since 2.3.0
+ *
+ * @return bool
+ */
+function is_paged() {
+	return (bool) lmat_test_get( 'is_paged', false );
 }
 
 /**
