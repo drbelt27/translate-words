@@ -123,7 +123,7 @@ class Slug_Routing {
 		$var        = $this->query_var( $query_vars );
 
 		if ( '' === $var ) {
-			return $query_vars;
+			return $this->map_attribute_query( $query_vars, $language );
 		}
 
 		$base_type = isset( self::QUERY_VARS[ $var ] ) ? self::QUERY_VARS[ $var ] : 'attribute';
@@ -140,7 +140,7 @@ class Slug_Routing {
 		}
 
 		if ( null === $base ) {
-			return $query_vars;
+			return $this->map_attribute_query( $query_vars, $language );
 		}
 
 		$type      = 'product' === $var ? Translation_Repository::TYPE_POST : Translation_Repository::TYPE_TERM;
@@ -178,6 +178,72 @@ class Slug_Routing {
 		} elseif ( 'redirect' === $base['action'] && ( Translation_Repository::TYPE_TERM === $type || 'publish' === get_post_status( $object_id ) ) ) {
 			// Only the base is retired: swap it in the requested path. Never for an unpublished product, which would disclose it.
 			$this->redirect_url = home_url( user_trailingslashit( implode( '/', array_merge( array( $language, $base['url'] ), $rest ) ) ) );
+		}
+
+		return $this->map_attribute_query( $query_vars, $language, $var );
+	}
+
+	/**
+	 * Returns the canonical slugs of attribute term values from a query string.
+	 *
+	 * Translated, superseded and canonical values are all accepted, and an unknown one is returned as
+	 * given: query strings have no 404 or redirect rule.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $value    One slug, or a comma-separated list as in `filter_color=red,blue`.
+	 * @param string $taxonomy Attribute taxonomy (pa_*).
+	 * @param string $language Language slug.
+	 * @return string
+	 */
+	public function map_attribute_value( $value, $taxonomy, $language ) {
+		$slugs = explode( ',', (string) $value );
+
+		foreach ( $slugs as $index => $slug ) {
+			$known = sanitize_title( urldecode( $slug ) ); // Same pipeline as resolve().
+
+			// Only a stored translated or superseded slug can change; checking the cached maps first keeps
+			// a long or made-up list from costing one canonical-slug query per item.
+			if ( $this->store::find( $known, $language, Translation_Repository::TYPE_TERM, $taxonomy ) > 0 || $this->store::find_superseded( $known, $language, Translation_Repository::TYPE_TERM, $taxonomy ) > 0 ) {
+				$slugs[ $index ] = $this->resolver->resolve( $slug, Translation_Repository::TYPE_TERM, $language, $taxonomy )['slug'];
+			}
+		}
+
+		return implode( ',', $slugs );
+	}
+
+	/**
+	 * Maps the `filter_<attribute>` and `pa_*` query string values to canonical slugs where WooCommerce
+	 * reads them: in the query vars (product filter blocks, attribute taxonomy queries) and in WC_Query's
+	 * layered-nav cache, which WooCommerce fills from $_GET. $_GET itself is left as received.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param array  $query_vars Query vars.
+	 * @param string $language   Language of the prefix.
+	 * @param string $path_var   Query var already resolved from the path, with its own 404 and 301 rules.
+	 * @return array
+	 */
+	private function map_attribute_query( $query_vars, $language, $path_var = '' ) {
+		foreach ( $query_vars as $key => $value ) {
+			$taxonomy = 0 === strpos( (string) $key, 'filter_' ) ? 'pa_' . substr( $key, strlen( 'filter_' ) ) : (string) $key;
+
+			if ( $key !== $path_var && is_string( $value ) && 0 === strpos( $taxonomy, 'pa_' ) ) {
+				$query_vars[ $key ] = $this->map_attribute_value( $value, $taxonomy, $language );
+			}
+		}
+
+		// WooCommerce 11.1 reads $_GET once in WC_Query::get_layered_nav_chosen_attributes() and offers no filter on it.
+		if ( class_exists( 'WC_Query' ) && property_exists( 'WC_Query', 'chosen_attributes' ) ) {
+			$chosen = \WC_Query::get_layered_nav_chosen_attributes();
+
+			foreach ( $chosen as $taxonomy => $data ) {
+				$chosen[ $taxonomy ]['terms'] = explode( ',', $this->map_attribute_value( implode( ',', $data['terms'] ), $taxonomy, $language ) );
+			}
+
+			$property = new \ReflectionProperty( 'WC_Query', 'chosen_attributes' );
+			$property->setAccessible( true );
+			$property->setValue( null, $chosen );
 		}
 
 		return $query_vars;

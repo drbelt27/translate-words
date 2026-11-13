@@ -331,13 +331,13 @@ class Linguator_WooCommerce {
 			return $url;
 		}
 
-		if ( ! function_exists( 'is_tax' ) || ! is_tax( Term_Translations::TAXONOMIES ) ) {
+		if ( ! function_exists( 'is_tax' ) || ! is_tax() ) {
 			return $url;
 		}
 
 		$term = get_queried_object();
 
-		if ( ! $term instanceof WP_Term ) {
+		if ( ! $term instanceof WP_Term || ! Slug_Links::is_shared_taxonomy( $term->taxonomy ) ) {
 			return $url;
 		}
 

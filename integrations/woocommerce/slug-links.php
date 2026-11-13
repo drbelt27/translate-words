@@ -284,10 +284,10 @@ class Slug_Links {
 			return array( 'post', get_queried_object_id(), '' );
 		}
 
-		if ( function_exists( 'is_tax' ) && is_tax( Term_Translations::TAXONOMIES ) ) {
+		if ( function_exists( 'is_tax' ) && is_tax() ) {
 			$term = get_queried_object();
 
-			if ( $term instanceof WP_Term ) {
+			if ( $term instanceof WP_Term && self::is_shared_taxonomy( $term->taxonomy ) ) {
 				return array( 'term', $term->term_id, $term->taxonomy );
 			}
 		}
@@ -296,13 +296,13 @@ class Slug_Links {
 	}
 
 	/**
-	 * Tells whether a taxonomy takes translated term slugs.
+	 * Tells whether a taxonomy takes translated term slugs: product category, tag, brand and pa_*.
 	 *
 	 * @since 2.3.0
 	 * @param string $taxonomy Taxonomy name.
 	 * @return bool
 	 */
-	private function is_shared_taxonomy( $taxonomy ) {
+	public static function is_shared_taxonomy( $taxonomy ) {
 		return in_array( $taxonomy, Term_Translations::TAXONOMIES, true ) || 0 === strpos( (string) $taxonomy, 'pa_' );
 	}
 }

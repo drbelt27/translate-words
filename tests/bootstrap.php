@@ -1045,6 +1045,54 @@ if ( ! getenv( 'LMAT_TEST_WITHOUT_WOOCOMMERCE' ) ) {
 	function wc_get_page_id( $page ) {
 		return 'shop' === $page ? (int) lmat_test_get( 'shop_page_id', -1 ) : -1;
 	}
+
+	/**
+	 * WooCommerce's WC_Query, reduced to the layered-nav read of WooCommerce 11.1: `filter_<attribute>`
+	 * values read from $_GET once, then cached in a private static property.
+	 *
+	 * @since 2.3.0
+	 */
+	class WC_Query {
+		/**
+		 * Chosen attributes, null until read.
+		 *
+		 * @var array|null
+		 */
+		private static $chosen_attributes;
+
+		/**
+		 * Same as WooCommerce.
+		 *
+		 * @return void
+		 */
+		public static function reset_chosen_attributes() {
+			self::$chosen_attributes = null;
+		}
+
+		/**
+		 * Same shape as WooCommerce: taxonomy => terms and query type.
+		 *
+		 * @return array
+		 */
+		public static function get_layered_nav_chosen_attributes() {
+			if ( ! is_array( self::$chosen_attributes ) ) {
+				self::$chosen_attributes = array();
+
+				foreach ( $_GET as $key => $value ) {
+					$taxonomy = 'pa_' . substr( $key, strlen( 'filter_' ) );
+
+					if ( 0 === strpos( $key, 'filter_' ) && is_string( $value ) && '' !== $value && taxonomy_exists( $taxonomy ) ) {
+						self::$chosen_attributes[ $taxonomy ] = array(
+							'terms'      => array_map( 'sanitize_title', explode( ',', $value ) ),
+							'query_type' => 'and',
+						);
+					}
+				}
+			}
+
+			return self::$chosen_attributes;
+		}
+	}
 }
 
 /**
@@ -1673,6 +1721,7 @@ function get_term_field( $field, $term, $taxonomy = '' ) {
  */
 function get_terms( $args = array() ) {
 	$ids = array();
+	lmat_test_set( 'get_terms_calls', (int) lmat_test_get( 'get_terms_calls', 0 ) + 1 );
 
 	foreach ( (array) lmat_test_get( 'term_slugs', array() ) as $id => $term ) {
 		if ( $term['taxonomy'] === $args['taxonomy'] && $term['slug'] === $args['slug']

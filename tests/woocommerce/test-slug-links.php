@@ -148,6 +148,51 @@ class Slug_Links_Test extends TestCase {
 		$this->assertSame( 'https://example.test/prodotto/open-day/', $pages['de']['x-default'] );
 	}
 
+	public function test_public_attribute_archive_gets_canonical_x_default_and_reciprocal_hreflang() {
+		lmat_test_set( 'term_slugs', array( 14 => array( 'slug' => 'blue', 'taxonomy' => 'pa_color', 'parent' => 0 ) ) );
+		lmat_test_set( 'term_links', array( 14 => 'https://example.test/color/blue/' ) );
+		lmat_test_set( 'is_product_tax', 'pa_color' );
+		lmat_test_set( 'queried_term', new WP_Term( 14, 'pa_color' ) );
+		Slug_Store::set( 14, 'de', 'blau', 'term', 'pa_color' );
+		Slug_Store::set( 14, 'fr', 'bleu', 'term', 'pa_color' );
+		$this->links()->init();
+		$integration = new Linguator_WooCommerce();
+		$pages       = array();
+
+		foreach ( array( 'it', 'de', 'fr' ) as $current ) {
+			lmat_test_set( 'curlang', $current );
+			$alternates = array();
+
+			foreach ( array( 'it', 'de', 'fr' ) as $target ) {
+				$alternates[ $target ] = $integration->term_archive_translation_url( '', new Lmat_Test_Language( $target ) );
+			}
+
+			$pages[ $current ] = $this->links()->hreflang( $alternates );
+		}
+
+		$this->assertSame( $pages['it'], $pages['de'] );
+		$this->assertSame( $pages['it'], $pages['fr'] );
+		$this->assertSame(
+			array(
+				'it'        => 'https://example.test/color/blue/',
+				'de'        => 'https://example.test/de/color/blau/',
+				'fr'        => 'https://example.test/fr/color/bleu/',
+				'x-default' => 'https://example.test/color/blue/',
+			),
+			$pages['de']
+		);
+
+		lmat_test_set( 'curlang', 'de' );
+		$this->assertSame( 'https://example.test/de/color/blau/', $this->links()->canonical_url( 'https://example.test/de/color/blue/' ) );
+
+		// Any other taxonomy archive is left to Linguator and the SEO plugin.
+		lmat_test_set( 'term_links', array( 15 => 'https://example.test/event/fair/' ) );
+		lmat_test_set( 'is_product_tax', 'event_type' );
+		lmat_test_set( 'queried_term', new WP_Term( 15, 'event_type' ) );
+		$this->assertSame( array( 'de' => 'https://example.test/de/event/fair/' ), $this->links()->hreflang( array( 'de' => 'https://example.test/de/event/fair/' ) ) );
+		$this->assertSame( '', $integration->term_archive_translation_url( '', new Lmat_Test_Language( 'de' ) ) );
+	}
+
 	public function test_canonical_is_self_referencing_on_the_translated_url() {
 		$this->shared_product_in_three_languages();
 		lmat_test_set( 'curlang', 'de' );

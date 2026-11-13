@@ -45,7 +45,11 @@ class Slug_Routing_Test extends TestCase {
 	 * @return void
 	 */
 	protected function tearDown(): void {
-		unset( $GLOBALS['wp'] );
+		unset( $GLOBALS['wp'], $GLOBALS['wp_query'], $_COOKIE['lmat_language'], $_SERVER['HTTP_ACCEPT_LANGUAGE'] );
+		$_GET = array();
+		if ( class_exists( 'WC_Query' ) ) {
+			WC_Query::reset_chosen_attributes();
+		}
 		parent::tearDown();
 	}
 
@@ -214,6 +218,186 @@ class Slug_Routing_Test extends TestCase {
 			return;
 		}
 		$this->fail( 'Expected wp_safe_redirect().' );
+	}
+
+	/**
+	 * Layered-nav and attribute query strings take the translated and the canonical value, a list maps
+	 * item by item, unknown values stay as given (no 404, no redirect) and $_GET is never rewritten.
+	 * WooCommerce reads filter_* twice: from the query vars (product filter blocks) and from $_GET
+	 * (WC_Query's layered nav); both readers get the canonical slugs.
+	 *
+	 * @return void
+	 */
+	public function test_filter_query_accepts_translated_and_canonical_values() {
+		lmat_test_set(
+			'term_slugs',
+			array(
+				10 => array( 'slug' => 'parent-c', 'taxonomy' => 'product_cat', 'parent' => 0 ),
+				20 => array( 'slug' => 'red', 'taxonomy' => 'pa_color', 'parent' => 0 ),
+				21 => array( 'slug' => 'blue', 'taxonomy' => 'pa_color', 'parent' => 0 ),
+				22 => array( 'slug' => 'green', 'taxonomy' => 'pa_color', 'parent' => 0 ),
+			)
+		);
+		Slug_Store::set( 20, 'de', 'rot', 'term', 'pa_color' );
+		Slug_Store::set( 22, 'de', 'gruen-alt', 'term', 'pa_color' );
+		Slug_Store::set( 22, 'de', 'gruen', 'term', 'pa_color' );
+		$routing = $this->routing();
+
+		$this->assertSame( 'red', $routing->map_attribute_value( 'rot', 'pa_color', 'de' ) );
+		$this->assertSame( 'red', $routing->map_attribute_value( 'red', 'pa_color', 'de' ) );
+		$this->assertSame( 'red,blue,green,green,nope', $routing->map_attribute_value( 'rot,blue,gruen-alt,gruen,nope', 'pa_color', 'de' ) );
+		$this->assertSame( 'rot', $routing->map_attribute_value( 'rot', 'pa_color', 'it' ), 'The default language only knows canonical slugs.' );
+
+		$_GET  = array( 'filter_color' => 'rot,blue', 'query_type_color' => 'or' );
+		$query = array(
+			'pagename'            => 'shop',
+			'filter_color'        => 'rot,blue',
+			'pa_color'            => 'rot',
+			'filter_stock_status' => 'instock',
+			'attribute_pa_color'  => 'rot', // Variation matching stays canonical-only.
+		);
+
+		$this->assertSame(
+			array(
+				'pagename'            => 'shop',
+				'filter_color'        => 'red,blue',
+				'pa_color'            => 'red',
+				'filter_stock_status' => 'instock',
+				'attribute_pa_color'  => 'rot',
+			),
+			$this->request( $routing, 'de/shop', $query )
+		);
+		$this->assertSame( '', $routing->redirect_url() );
+		$this->assertSame( array( 'filter_color' => 'rot,blue', 'query_type_color' => 'or' ), $_GET );
+
+		if ( class_exists( 'WC_Query' ) ) {
+			$this->assertSame( array( 'pa_color' => array( 'terms' => array( 'red', 'blue' ), 'query_type' => 'and' ) ), WC_Query::get_layered_nav_chosen_attributes() );
+		}
+
+		$this->assertSame( array( 'pagename' => 'shop', 'filter_color' => 'red' ), $this->request( $routing, 'de/shop', array( 'pagename' => 'shop', 'filter_color' => 'rot' ) ) );
+		$this->assertSame( array( 'product_cat' => 'parent-c', 'filter_color' => 'red' ), $this->request( $routing, 'de/kategorie/parent-c', array( 'product_cat' => 'parent-c', 'filter_color' => 'rot' ) ), 'A category archive with a layered-nav filter.' );
+		$this->assertSame( array( 'pa_color' => 'red' ), $this->request( $routing, 'de/color/rot', array( 'pa_color' => 'rot' ) ), 'An attribute archive without an attribute base (the WooCommerce default).' );
+		$this->assertSame( array( 'filter_color' => 'rot' ), $this->request( $routing, '', array( 'filter_color' => 'rot' ) ), 'Unprefixed (default language) requests are untouched.' );
+	}
+
+	/**
+	 * A long or made-up filter list costs no per-item canonical-slug query: only values found in the
+	 * cached slug maps reach the resolver.
+	 *
+	 * @return void
+	 */
+	public function test_filter_values_unknown_to_the_slug_maps_cost_no_term_query() {
+		lmat_test_set( 'term_slugs', array( 20 => array( 'slug' => 'red', 'taxonomy' => 'pa_color', 'parent' => 0 ) ) );
+		Slug_Store::set( 20, 'de', 'rot', 'term', 'pa_color' );
+		$values = implode( ',', array_map( 'strval', range( 1, 50 ) ) );
+		lmat_test_set( 'get_terms_calls', 0 );
+
+		$this->assertSame( 'red,' . $values, $this->routing()->map_attribute_value( 'rot,' . $values, 'pa_color', 'de' ) );
+		$this->assertSame( 0, lmat_test_get( 'get_terms_calls' ) );
+	}
+
+	/**
+	 * An attribute archive slug is resolved once, by the path rules: a German slug that equals another
+	 * term's canonical slug (allowed once that term has its own German slug) is not resolved a second time.
+	 *
+	 * @return void
+	 */
+	public function test_attribute_archive_slug_is_resolved_once() {
+		lmat_test_set( 'permalink_structure', array( 'attribute_base' => 'attributo' ) );
+		lmat_test_set(
+			'term_slugs',
+			array(
+				20 => array( 'slug' => 'rosso', 'taxonomy' => 'pa_color', 'parent' => 0 ),
+				23 => array( 'slug' => 'blu', 'taxonomy' => 'pa_color', 'parent' => 0 ),
+				24 => array( 'slug' => 'verde', 'taxonomy' => 'pa_color', 'parent' => 0 ),
+			)
+		);
+		Slug_Store::set( 20, 'de', 'rot', 'term', 'pa_color' );
+		Slug_Store::set( 23, 'de', 'rosso', 'term', 'pa_color' );
+		Slug_Store::set( 24, 'de', 'blu', 'term', 'pa_color' );
+
+		$this->assertSame( array( 'pa_color' => 'blu' ), $this->request( $this->routing(), 'de/attributo/color/rosso', array( 'pa_color' => 'rosso' ) ) );
+	}
+
+	/**
+	 * Review Focus 4: a crawler sends no cookie and no Accept-Language. The language comes from the URL
+	 * prefix alone, so the translated URL is served (no redirect) and an untranslated product still opens;
+	 * a cookie or header for another language changes nothing.
+	 *
+	 * @return void
+	 */
+	public function test_prefixed_url_without_cookie_or_accept_language_is_not_redirected() {
+		lmat_test_set( 'post_names', array( 5 => 'open-day', 6 => 'plain' ) );
+		$routing = $this->routing();
+		$routing->init();
+		$visitors = array(
+			'crawler' => array(),
+			'browser' => array( 'cookie' => 'fr', 'accept' => 'fr-FR,fr;q=0.9' ),
+		);
+
+		foreach ( $visitors as $visitor => $sends ) {
+			unset( $_COOKIE['lmat_language'], $_SERVER['HTTP_ACCEPT_LANGUAGE'] );
+			if ( ! empty( $sends ) ) {
+				$_COOKIE['lmat_language']        = $sends['cookie'];
+				$_SERVER['HTTP_ACCEPT_LANGUAGE'] = $sends['accept'];
+			}
+
+			foreach ( array( 'de/produkt/open-day-de' => 'open-day', 'de/produkt/plain' => 'plain' ) as $path => $product ) {
+				lmat_test_set( 'safe_redirect', null );
+				lmat_test_set( 'status_header', null );
+				$GLOBALS['wp']       = (object) array( 'request' => $path );
+				$GLOBALS['wp_query'] = new Lmat_Test_Query();
+
+				$this->assertSame( array( 'product' => $product ), apply_filters( 'request', array( 'product' => basename( $path ) ) ), "$visitor $path" );
+				do_action( 'template_redirect' ); // Throws Lmat_Test_Redirect on any redirect.
+				$this->assertNull( lmat_test_get( 'safe_redirect' ), "$visitor $path" );
+				$this->assertNull( lmat_test_get( 'status_header' ), "$visitor $path" );
+				$this->assertFalse( $GLOBALS['wp_query']->is_404, "$visitor $path" );
+			}
+		}
+	}
+
+	/**
+	 * A slug that never belonged to anything is a real 404 (status, query flag, and no core guess that
+	 * could send it home), and every retired URL 301s straight to the final one: the target itself does
+	 * not redirect again.
+	 *
+	 * @return void
+	 */
+	public function test_unknown_slug_returns_a_real_404_status_and_a_redirected_url_never_chains() {
+		Slug_Store::set_base( 'de', 'product', 'produkt-alt' );
+		Slug_Store::set_base( 'de', 'product', 'produkt' );
+		Slug_Store::set( 5, 'de', 'open-day-alt' );
+		Slug_Store::set( 5, 'de', 'open-day-de' );
+		Slug_Store::set( 10, 'de', 'eltern', 'term', 'product_cat' );
+		$routing = $this->routing();
+		$routing->init();
+		$rules = $this->stored_rules( $routing );
+
+		foreach ( array( 'de/produkt/unknown' => array( 'product' => 'unknown' ), 'de/kategorie/unknown' => array( 'product_cat' => 'unknown' ) ) as $path => $query_vars ) {
+			$GLOBALS['wp']       = (object) array( 'request' => $path );
+			$GLOBALS['wp_query'] = new Lmat_Test_Query();
+			lmat_test_set( 'safe_redirect', null );
+
+			$this->assertSame( array( 'error' => '404' ), apply_filters( 'request', $query_vars ), $path );
+			do_action( 'template_redirect' );
+			$this->assertSame( 404, lmat_test_get( 'status_header' ), $path );
+			$this->assertTrue( $GLOBALS['wp_query']->is_404, $path );
+			$this->assertNull( lmat_test_get( 'safe_redirect' ), $path );
+			$this->assertFalse( apply_filters( 'redirect_canonical', home_url( '/' ), home_url( '/' . $path . '/' ) ), $path );
+		}
+
+		$retired = array( 'de/prodotto/open-day', 'de/produkt/open-day', 'de/prodotto/open-day-de', 'de/produkt-alt/open-day-alt', 'de/produkt/open-day-alt', 'de/produkt-alt/open-day-de' );
+
+		foreach ( $retired as $path ) {
+			$this->request( $routing, $path, $this->wp_match( $rules, $path ) );
+			$target = $routing->redirect_url();
+			$this->assertSame( 'https://example.test/de/produkt/open-day-de/', $target, $path );
+
+			$hop = trim( (string) parse_url( $target, PHP_URL_PATH ), '/' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- No WordPress in the harness.
+			$this->assertSame( array( 'lmat_lang' => 'de', 'product' => 'open-day' ), $this->request( $routing, $hop, $this->wp_match( $rules, $hop ) ), $path );
+			$this->assertSame( '', $routing->redirect_url(), "$path must reach its target in one hop." );
+		}
 	}
 
 	/**
