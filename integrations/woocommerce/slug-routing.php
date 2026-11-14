@@ -185,7 +185,7 @@ class Slug_Routing {
 		}
 
 		if ( '' !== $this->redirect_url && ! empty( $_SERVER['QUERY_STRING'] ) ) {
-			$query    = explode( '#', (string) $_SERVER['QUERY_STRING'], 2 )[0];
+			$query    = explode( '#', wp_unslash( $_SERVER['QUERY_STRING'] ), 2 )[0]; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Preserve encoded query parameters for the redirect.
 			$existing = parse_url( $this->redirect_url, PHP_URL_QUERY );
 			$keys     = array();
 
