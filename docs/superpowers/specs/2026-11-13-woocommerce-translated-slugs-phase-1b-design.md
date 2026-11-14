@@ -112,7 +112,10 @@ A single `Slug_Resolver` owns three things, so no caller reimplements them:
   `/kategorie/<de-parent>/<canonical-child>/`. Uniqueness is checked per language, type and parent.
 - **Base types are independent:** rule 3 applies per base type (product, category, tag, attribute), not per language.
 - **Attribute terms:** the translated slug appears in archive URLs (where WooCommerce makes the
-  attribute public) and in layered-nav links. In `filter_*` / `pa_*` query strings both the translated
+  attribute public). Layered-nav (filter) links stay canonical in 1b: WooCommerce's layered-nav
+  widget builds its links from the raw `$_GET`, so emitting a translated value would make an active
+  filter impossible to remove by clicking, and filter URLs are not canonical targets, so the SEO
+  effect is small (decision recorded 2026-11-13; revisit with a dedicated change). In `filter_*` / `pa_*` query strings both the translated
   and the canonical value are accepted (no 404 rule for query strings), mapped to canonical at the
   point WooCommerce reads the query var. `$_GET` is never rewritten globally.
 
