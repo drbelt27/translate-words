@@ -320,6 +320,78 @@ class Slug_Routing_Test extends TestCase {
 	}
 
 	/**
+	 * A base-less attribute archive path (the WooCommerce default) follows the strict path rules: canonical
+	 * 301s once, unknown is a real 404, translated is served, superseded 301s once. The same values in a
+	 * query string stay lenient, and a translated attribute base changes nothing when the canonical one is empty.
+	 *
+	 * @return void
+	 */
+	public function test_baseless_attribute_archive_path_follows_the_strict_rules() {
+		lmat_test_set( 'term_slugs', array( 20 => array( 'slug' => 'red', 'taxonomy' => 'pa_color', 'parent' => 0 ) ) );
+		lmat_test_set( 'term_links', array( 20 => 'https://example.test/color/red/' ) );
+		Slug_Store::set( 20, 'de', 'rot-alt', 'term', 'pa_color' );
+		Slug_Store::set( 20, 'de', 'rot', 'term', 'pa_color' );
+
+		foreach ( array( false, true ) as $translated_base ) {
+			if ( $translated_base ) {
+				Slug_Store::set_base( 'de', 'attribute', 'attribut' );
+			}
+
+			foreach ( array( 'red', 'rot-alt' ) as $retired ) {
+				$routing = $this->routing();
+				$this->request( $routing, 'de/color/' . $retired, array( 'pa_color' => $retired ) );
+				$this->assertSame( 'https://example.test/de/color/rot/', $routing->redirect_url(), "$translated_base $retired" );
+				$this->assertSame( array( 'pa_color' => 'red' ), $this->request( $routing, 'de/color/rot', array( 'pa_color' => 'rot' ) ) );
+				$this->assertSame( '', $routing->redirect_url(), 'Redirect must stop at its target.' );
+			}
+
+			$routing = $this->routing();
+			$this->assertSame( array( 'error' => '404' ), $this->request( $routing, 'de/color/nope', array( 'pa_color' => 'nope' ) ), $translated_base );
+			$GLOBALS['wp_query'] = new Lmat_Test_Query();
+			$routing->redirect();
+			$this->assertSame( 404, lmat_test_get( 'status_header' ), $translated_base );
+			$this->assertTrue( $GLOBALS['wp_query']->is_404, $translated_base );
+
+			$routing = $this->routing();
+			$this->assertSame( array( 'pa_color' => 'red' ), $this->request( $routing, 'de/color/rot', array( 'pa_color' => 'rot' ) ), $translated_base );
+			$this->assertSame( '', $routing->redirect_url(), $translated_base );
+
+			// The same values in a query string are lenient: no 404, no redirect, $_GET untouched.
+			$_GET    = array( 'pa_color' => 'red' );
+			$routing = $this->routing();
+			$this->assertSame( array( 'pagename' => 'shop', 'pa_color' => 'red' ), $this->request( $routing, 'de/shop', array( 'pagename' => 'shop', 'pa_color' => 'red' ) ), $translated_base );
+			$this->assertSame( '', $routing->redirect_url(), $translated_base );
+			$this->assertSame( array( 'pa_color' => 'red' ), $this->request( $routing, 'de/color/rot', array( 'pa_color' => 'red' ) ), 'Query-string pa_color must not become a path slug.' );
+			$this->assertSame( '', $routing->redirect_url(), $translated_base );
+			$this->assertSame( array( 'pa_color' => 'red' ), $_GET );
+			$this->assertSame( array( 'pagename' => 'shop', 'pa_color' => 'nope' ), $this->request( $this->routing(), 'de/shop', array( 'pagename' => 'shop', 'pa_color' => 'nope' ) ), $translated_base );
+			$_GET = array();
+		}
+	}
+
+	/**
+	 * Reflection into WooCommerce's private layered-nav cache must never fatal: a cache whose terms are
+	 * not an array is left alone.
+	 *
+	 * @return void
+	 */
+	public function test_layered_nav_cache_with_non_array_terms_is_left_alone() {
+		if ( ! class_exists( 'WC_Query' ) ) {
+			$this->assertSame( array( 'pagename' => 'shop' ), $this->request( $this->routing(), 'de/shop', array( 'pagename' => 'shop' ) ) );
+			return;
+		}
+
+		$property = new \ReflectionProperty( 'WC_Query', 'chosen_attributes' );
+		if ( PHP_VERSION_ID < 80100 ) {
+			$property->setAccessible( true );
+		}
+		$property->setValue( null, array( 'pa_color' => array( 'terms' => 'rot', 'query_type' => 'and' ) ) );
+
+		$this->assertSame( array( 'pagename' => 'shop' ), $this->request( $this->routing(), 'de/shop', array( 'pagename' => 'shop' ) ) );
+		$this->assertSame( array( 'pa_color' => array( 'terms' => 'rot', 'query_type' => 'and' ) ), $property->getValue() );
+	}
+
+	/**
 	 * Review Focus 4: a crawler sends no cookie and no Accept-Language. The language comes from the URL
 	 * prefix alone, so the translated URL is served (no redirect) and an untranslated product still opens;
 	 * a cookie or header for another language changes nothing.

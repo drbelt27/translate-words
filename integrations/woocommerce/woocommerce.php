@@ -426,7 +426,9 @@ class Linguator_WooCommerce {
 			return true;
 		}
 
-		return function_exists( 'is_tax' ) && is_tax( Term_Translations::TAXONOMIES );
+		$term = function_exists( 'is_tax' ) && is_tax() ? get_queried_object() : null;
+
+		return $term instanceof WP_Term && Slug_Links::is_shared_taxonomy( $term->taxonomy );
 	}
 
 	/**

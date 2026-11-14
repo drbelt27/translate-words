@@ -203,7 +203,8 @@ final class Slug_Resolver {
 			return $this->outcome( 'map', 0, $canonical );
 		}
 
-		if ( $base === $canonical && '' === $translated ) {
+		// An empty canonical base (WooCommerce's default for attributes) is only ever met as the empty request base.
+		if ( $base === $canonical && ( '' === $translated || '' === $canonical ) ) {
 			return $this->outcome( 'pass', 0, $base );
 		}
 

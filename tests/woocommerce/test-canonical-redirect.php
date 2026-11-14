@@ -121,6 +121,7 @@ class Canonical_Redirect_Test extends TestCase {
 	 */
 	public function test_shared_product_taxonomy_archive_under_a_language_prefix_is_not_redirected() {
 		lmat_test_set( 'is_product_tax', 'product_cat' );
+		lmat_test_set( 'queried_term', new WP_Term( 9, 'product_cat' ) );
 
 		$result = $this->integration->keep_shared_object_url_from_redirecting(
 			'https://example.test/categoria-prodotto/abbigliamento/',
@@ -128,6 +129,18 @@ class Canonical_Redirect_Test extends TestCase {
 		);
 
 		$this->assertFalse( $result );
+	}
+
+	/**
+	 * A shared attribute archive also keeps its language prefix instead of being sent to the default URL.
+	 *
+	 * @return void
+	 */
+	public function test_shared_attribute_archive_under_a_language_prefix_is_not_redirected() {
+		lmat_test_set( 'is_product_tax', 'pa_color' );
+		lmat_test_set( 'queried_term', new WP_Term( 20, 'pa_color' ) );
+
+		$this->assertFalse( $this->integration->keep_shared_object_url_from_redirecting( 'https://example.test/color/red/', 'https://example.test/de/color/rot/' ) );
 	}
 
 	/**

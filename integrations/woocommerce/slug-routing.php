@@ -130,7 +130,11 @@ class Slug_Routing {
 		$base      = null;
 
 		// The base may span several segments ("shop/produkt"): take the shortest prefix the resolver knows.
-		for ( $length = 1; null === $base && $length < count( $segments ); $length++ ) {
+		// WooCommerce's default attribute base is empty. Only a path-origin pa_* archive tries it;
+		// query-string pa_* remains lenient even on an attribute archive.
+		$first = 0 === strpos( $var, 'pa_' ) && ! isset( $_GET[ $var ] ) && isset( $segments[1] ) && substr( $var, 3 ) === $segments[1] ? 0 : 1; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Presence only.
+
+		for ( $length = $first; null === $base && $length < count( $segments ); $length++ ) {
 			$outcome = $this->resolver->resolve_base( implode( '/', array_slice( $segments, 1, $length ) ), $base_type, $language );
 
 			if ( 'not_found' !== $outcome['action'] ) {
@@ -234,16 +238,33 @@ class Slug_Routing {
 		}
 
 		// WooCommerce 11.1 reads $_GET once in WC_Query::get_layered_nav_chosen_attributes() and offers no filter on it.
+		// If WooCommerce changes the private static cache's shape, leave it alone.
 		if ( class_exists( 'WC_Query' ) && property_exists( 'WC_Query', 'chosen_attributes' ) ) {
+			$property = new \ReflectionProperty( 'WC_Query', 'chosen_attributes' );
+			if ( ! $property->isStatic() ) {
+				return $query_vars;
+			}
+
 			$chosen = \WC_Query::get_layered_nav_chosen_attributes();
+			if ( ! is_array( $chosen ) ) {
+				return $query_vars;
+			}
 
 			foreach ( $chosen as $taxonomy => $data ) {
+				if ( ! is_array( $data ) || ! isset( $data['terms'] ) || ! is_array( $data['terms'] ) ) {
+					return $query_vars;
+				}
+
 				$chosen[ $taxonomy ]['terms'] = explode( ',', $this->map_attribute_value( implode( ',', $data['terms'] ), $taxonomy, $language ) );
 			}
 
-			$property = new \ReflectionProperty( 'WC_Query', 'chosen_attributes' );
-			$property->setAccessible( true );
-			$property->setValue( null, $chosen );
+			if ( ! empty( $chosen ) ) {
+				if ( PHP_VERSION_ID < 80100 ) {
+					$property->setAccessible( true ); // No-op since 8.1 and deprecated in 8.5.
+				}
+
+				$property->setValue( null, $chosen );
+			}
 		}
 
 		return $query_vars;
