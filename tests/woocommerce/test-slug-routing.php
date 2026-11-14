@@ -586,6 +586,23 @@ class Slug_Routing_Test extends TestCase {
 	}
 
 	/**
+	 * A product base with two segments must recover from the prefixed attachment match.
+	 *
+	 * @return void
+	 */
+	public function test_prefixed_attachment_match_with_a_multi_segment_product_base() {
+		lmat_test_set( 'permalink_structure', array( 'product_base' => '/shop/produkt' ) );
+		lmat_test_set( 'permalinks', array( 5 => 'https://example.test/shop/produkt/open-day/' ) );
+		$routing = $this->routing();
+		$query_vars = $this->request( $routing, 'de/shop/produkt/open-day', array( 'attachment' => 'open-day', 'lmat_lang' => 'de' ) );
+
+		$this->assertArrayHasKey( 'product', $query_vars );
+		$this->assertSame( 'open-day', $query_vars['product'] );
+		$this->assertSame( 'product', $query_vars['post_type'] );
+		$this->assertArrayNotHasKey( 'attachment', $query_vars );
+	}
+
+	/**
 	 * Rule 1: the canonical slug under the prefix 301s straight to the translated URL, which then
 	 * resolves without a further redirect.
 	 *

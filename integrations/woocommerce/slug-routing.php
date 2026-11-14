@@ -125,7 +125,8 @@ class Slug_Routing {
 			$base_key = 'product' === $name ? 'product_base' : $base_type . '_base';
 			$base     = isset( $structure[ $base_key ] ) ? trim( (string) $structure[ $base_key ], '/' ) : '';
 
-			if ( isset( $query_vars['attachment'] ) && '' !== $base && count( $segments ) === 3 && $segments[1] === $base && $segments[2] === $query_vars['attachment'] ) {
+			$base_segments = explode( '/', $base );
+			if ( isset( $query_vars['attachment'] ) && '' !== $base && count( $segments ) === count( $base_segments ) + 2 && array_slice( $segments, 1, count( $base_segments ) ) === $base_segments && end( $segments ) === $query_vars['attachment'] ) {
 				$query_vars[ $name ] = $query_vars['attachment'];
 				if ( 'product' === $name ) {
 					$query_vars['post_type'] = 'product';

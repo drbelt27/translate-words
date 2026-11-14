@@ -26,6 +26,53 @@ class Slug_Links_Test extends TestCase {
 		return new Slug_Links( new Slug_Resolver( new Slug_Store() ) );
 	}
 
+	public function test_seopress_sitemap_adds_each_product_language_once() {
+		lmat_test_set( 'curlang', 'it' );
+		Slug_Store::set( 5, 'de', 'offener-tag' );
+		$links = $this->links();
+		$links->init();
+		$post = new Lmat_Test_Post( 5 );
+		$entry = apply_filters( 'seopress_sitemaps_single_url', array( 'loc' => 'https://example.test/prodotto/open-day/', 'mod' => '2026-11-14' ), $post );
+		$xml = apply_filters( 'seopress_sitemaps_url', '<url><loc>https://example.test/prodotto/open-day/</loc><lastmod>2026-11-14</lastmod></url>', $entry );
+
+		$this->assertSame( 1, substr_count( $xml, '<loc>https://example.test/prodotto/open-day/</loc>' ) );
+		$this->assertSame( 1, substr_count( $xml, '<loc>https://example.test/de/prodotto/offener-tag/</loc>' ) );
+		$this->assertSame( 1, substr_count( $xml, '<loc>https://example.test/fr/prodotto/open-day/</loc>' ) );
+		$this->assertSame( 1, substr_count( $xml, '<loc>https://example.test/en/prodotto/open-day/</loc>' ) );
+	}
+
+	public function test_seopress_sitemap_adds_each_shared_term_language_once() {
+		lmat_test_set( 'term_slugs', array( 9 => array( 'slug' => 'abiti', 'taxonomy' => 'product_cat', 'parent' => 0 ) ) );
+		lmat_test_set( 'term_links', array( 9 => 'https://example.test/categoria-prodotto/abiti/' ) );
+		Slug_Store::set( 9, 'de', 'kleider', 'term', 'product_cat' );
+		$links = $this->links();
+		$links->init();
+		$term = new WP_Term( 9, 'product_cat', 'abiti' );
+		$entry = apply_filters( 'seopress_sitemaps_term_single_url', array( 'loc' => 'https://example.test/categoria-prodotto/abiti/' ), $term );
+		$xml = apply_filters( 'seopress_sitemaps_url', '<url><loc>https://example.test/categoria-prodotto/abiti/</loc></url>', $entry );
+
+		$this->assertSame( 1, substr_count( $xml, '<loc>https://example.test/categoria-prodotto/abiti/</loc>' ) );
+		$this->assertSame( 1, substr_count( $xml, '<loc>https://example.test/de/categoria-prodotto/kleider/</loc>' ) );
+		$this->assertSame( 1, substr_count( $xml, '<loc>https://example.test/fr/categoria-prodotto/abiti/</loc>' ) );
+	}
+
+	public function test_seopress_excluded_entries_stay_excluded() {
+		$links = $this->links();
+		$links->init();
+		$this->assertNull( apply_filters( 'seopress_sitemaps_single_url', null, new Lmat_Test_Post( 5 ) ) );
+		$this->assertNull( apply_filters( 'seopress_sitemaps_term_single_url', null, new WP_Term( 9, 'product_cat', 'abiti' ) ) );
+	}
+
+	public function test_seopress_sitemap_is_unchanged_when_shared_mode_is_off() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => false ) );
+		$links = $this->links();
+		$links->init();
+		$entry = apply_filters( 'seopress_sitemaps_single_url', array( 'loc' => 'https://example.test/prodotto/open-day/' ), new Lmat_Test_Post( 5 ) );
+		$xml = '<url><loc>https://example.test/prodotto/open-day/</loc></url>';
+
+		$this->assertSame( $xml, apply_filters( 'seopress_sitemaps_url', $xml, $entry ) );
+	}
+
 	public function test_product_permalink_uses_the_translated_slug_in_the_current_language() {
 		lmat_test_set( 'curlang', 'de' );
 		Slug_Store::set( 5, 'de', 'open-day-de' );

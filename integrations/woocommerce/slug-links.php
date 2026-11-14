@@ -47,6 +47,9 @@ class Slug_Links {
 		add_filter( 'wp_sitemaps_posts_entry', array( $this, 'sitemap_entry' ), 10, 2 );
 		add_filter( 'wp_sitemaps_taxonomies_entry', array( $this, 'sitemap_term_entry' ), 10, 4 );
 		add_filter( 'lmat_sitemap_subtype_per_language', array( $this, 'sitemap_per_language' ), 10, 3 );
+		add_filter( 'seopress_sitemaps_single_url', array( $this, 'seopress_product_entry' ), 10, 2 );
+		add_filter( 'seopress_sitemaps_term_single_url', array( $this, 'seopress_term_entry' ), 10, 2 );
+		add_filter( 'seopress_sitemaps_url', array( $this, 'seopress_product_urls' ), 10, 2 );
 		add_filter( 'woocommerce_structured_data_product', array( $this, 'schema_url' ), 10, 2 );
 	}
 
@@ -225,6 +228,58 @@ class Slug_Links {
 	 * @param object $product WC_Product.
 	 * @return array
 	 */
+	/**
+	 * Keeps the product ID for SEOPress's XML entry filter, which has no post argument.
+	 *
+	 * @since 2.3.0
+	 * @param array  $entry Sitemap entry.
+	 * @param object $post  Product post.
+	 * @return array
+	 */
+	public function seopress_product_entry( $entry, $post ) {
+		if ( is_array( $entry ) && Shared_Mode::is_enabled() && is_object( $post ) && 'product' === get_post_type( $post ) && 'publish' === get_post_status( $post->ID ) ) {
+			$entry['lmat_wc_product_id'] = (int) $post->ID;
+		}
+
+		return $entry;
+	}
+
+	/**
+	 * Adds the other language URLs to the same paginated SEOPress product entry.
+	 *
+	 * @since 2.3.0
+	 * @param string $xml   Original XML entry.
+	 * @param array  $entry SEOPress entry data.
+	 * @return string
+	 */
+	public function seopress_term_entry( $entry, $term ) {
+		if ( is_array( $entry ) && Shared_Mode::is_enabled() && $term instanceof WP_Term && self::is_shared_taxonomy( $term->taxonomy ) ) {
+			$entry['lmat_wc_term_id']       = (int) $term->term_id;
+			$entry['lmat_wc_term_taxonomy'] = $term->taxonomy;
+		}
+
+		return $entry;
+	}
+
+	public function seopress_product_urls( $xml, $entry ) {
+		if ( ! Shared_Mode::is_enabled() || ( empty( $entry['lmat_wc_product_id'] ) && empty( $entry['lmat_wc_term_id'] ) ) ) {
+			return $xml;
+		}
+
+		foreach ( (array) linguator_languages_list() as $language ) {
+			$url = ! empty( $entry['lmat_wc_product_id'] )
+				? $this->resolver->permalink( 'post', $entry['lmat_wc_product_id'], $language )
+				: $this->resolver->permalink( 'term', $entry['lmat_wc_term_id'], $language, $entry['lmat_wc_term_taxonomy'] );
+			$loc = '<loc>' . esc_url( $url ) . '</loc>';
+
+			if ( '' !== $url && false === strpos( $xml, $loc ) ) {
+				$xml .= '<url>' . $loc . '</url>';
+			}
+		}
+
+		return $xml;
+	}
+
 	public function schema_url( $markup, $product = null ) {
 		if ( ! is_array( $markup ) || empty( $markup['url'] ) || ! is_object( $product ) || ! method_exists( $product, 'get_id' ) || 'product' !== get_post_type( $product->get_id() ) ) {
 			return $markup;
