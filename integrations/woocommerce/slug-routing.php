@@ -184,6 +184,27 @@ class Slug_Routing {
 			$this->redirect_url = home_url( user_trailingslashit( implode( '/', array_merge( array( $language, $base['url'] ), $rest ) ) ) );
 		}
 
+		if ( '' !== $this->redirect_url && ! empty( $_SERVER['QUERY_STRING'] ) ) {
+			$query    = explode( '#', (string) $_SERVER['QUERY_STRING'], 2 )[0];
+			$existing = parse_url( $this->redirect_url, PHP_URL_QUERY );
+			$keys     = array();
+
+			foreach ( explode( '&', (string) $existing ) as $part ) {
+				$keys[ rawurldecode( explode( '=', $part, 2 )[0] ) ] = true;
+			}
+
+			$append = array();
+			foreach ( explode( '&', $query ) as $part ) {
+				if ( '' !== $part && ! isset( $keys[ rawurldecode( explode( '=', $part, 2 )[0] ) ] ) ) {
+					$append[] = $part;
+				}
+			}
+
+			if ( $append ) {
+				$this->redirect_url .= ( null === $existing ? '?' : '&' ) . implode( '&', $append );
+			}
+		}
+
 		return $this->map_attribute_query( $query_vars, $language, $var );
 	}
 

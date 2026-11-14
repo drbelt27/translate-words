@@ -163,6 +163,25 @@ class Slug_Store_Test extends TestCase {
 	 *
 	 * @return void
 	 */
+	public function test_conflicting_bases_are_rejected_without_changing_history_or_rules() {
+		lmat_test_set( 'permalink_structure', array( 'product_base' => 'prodotto', 'category_base' => 'categoria', 'tag_base' => 'etichetta', 'attribute_base' => 'attributo' ) );
+		$this->assertTrue( Slug_Store::set_base( 'de', 'product', 'artikel' ) );
+		$this->assertTrue( Slug_Store::set_base( 'de', 'product', 'shop' ) );
+		$before = get_option( Slug_Store::BASES_OPTION );
+		$flushes = lmat_test_get( 'flushes', 0 );
+
+		foreach ( array( 'shop', 'shop/category', 'artikel', 'prodotto', 'etichetta', 'attributo' ) as $base ) {
+			$this->assertInstanceOf( WP_Error::class, Slug_Store::set_base( 'de', 'category', $base ), $base );
+			$this->assertSame( $before, get_option( Slug_Store::BASES_OPTION ), $base );
+			$this->assertSame( $flushes, lmat_test_get( 'flushes', 0 ), $base );
+		}
+		$this->assertInstanceOf( WP_Error::class, Slug_Store::set_base( 'de', 'tag', 'categoria/child' ) );
+		$this->assertTrue( Slug_Store::set_base( 'fr', 'category', 'shop/category' ) );
+		$this->assertTrue( Slug_Store::set_base( 'de', 'category', 'other' ) );
+		$this->assertInstanceOf( WP_Error::class, Slug_Store::set_base( 'de', 'product', 'other/child' ) );
+		$this->assertSame( 'shop', Slug_Store::get_base( 'de', 'product' ) );
+	}
+
 	public function test_bases_round_trip_and_supersede() {
 		$this->assertTrue( Slug_Store::set_base( 'de', 'product', 'produkt' ) );
 		$this->assertSame( 'produkt', Slug_Store::get_base( 'de', 'product' ) );

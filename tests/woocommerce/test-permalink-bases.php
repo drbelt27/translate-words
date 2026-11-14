@@ -93,6 +93,20 @@ class Permalink_Bases_Test extends TestCase {
 	 *
 	 * @return void
 	 */
+	public function test_conflicting_base_shows_error_and_does_not_flush_or_replace_saved_base() {
+		$this->submit( array( 'de' => array( 'product' => 'artikel', 'category' => 'kategorie' ) ) );
+		$flushes = lmat_test_get( 'flushes', 0 );
+		$this->submit( array( 'de' => array( 'category' => 'artikel' ) ) );
+
+		$this->assertSame( 'kategorie', Slug_Store::get_base( 'de', 'category' ) );
+		$this->assertSame( $flushes, lmat_test_get( 'flushes', 0 ) );
+		ob_start();
+		$this->screen->render();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringContainsString( 'artikel', $html );
+	}
+
 	public function test_bases_screen_warns_but_does_not_block_a_base_that_collides_with_a_page_path() {
 		lmat_test_set( 'pages', array( 'shop/produkt' => true ) );
 

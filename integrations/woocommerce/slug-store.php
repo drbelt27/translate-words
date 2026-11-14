@@ -265,10 +265,32 @@ class Slug_Store {
 			return true;
 		}
 
-		$bases = (array) get_option( self::BASES_OPTION, array() );
-		$key   = sanitize_key( $language );
-		$old   = isset( $bases[ $key ]['old'][ $base_type ] ) ? (array) $bases[ $key ]['old'][ $base_type ] : array();
-		$old   = array_diff( $old, array( $base ) );
+		$bases     = (array) get_option( self::BASES_OPTION, array() );
+		$key       = sanitize_key( $language );
+		$structure = function_exists( 'wc_get_permalink_structure' ) ? wc_get_permalink_structure() : array();
+
+		foreach ( self::BASE_TYPES as $other_type ) {
+			if ( $base_type === $other_type ) {
+				continue;
+			}
+
+			$canonical = isset( $structure[ $other_type . '_base' ] ) ? (string) $structure[ $other_type . '_base' ] : '';
+			$cut       = strpos( $canonical, '%' );
+			$canonical = trim( false === $cut ? $canonical : substr( $canonical, 0, $cut ), '/' );
+			$used      = array_merge(
+				array( $canonical, isset( $bases[ $key ][ $other_type ] ) ? $bases[ $key ][ $other_type ] : '' ),
+				isset( $bases[ $key ]['old'][ $other_type ] ) ? (array) $bases[ $key ]['old'][ $other_type ] : array()
+			);
+
+			foreach ( $used as $existing ) {
+				if ( '' !== $existing && ( $base === $existing || 0 === strpos( $base, $existing . '/' ) || 0 === strpos( $existing, $base . '/' ) ) ) {
+					return new WP_Error( 'lmat_wc_base_conflict', __( 'This permalink base conflicts with another product permalink base.', 'translate-words' ) );
+				}
+			}
+		}
+
+		$old = isset( $bases[ $key ]['old'][ $base_type ] ) ? (array) $bases[ $key ]['old'][ $base_type ] : array();
+		$old = array_diff( $old, array( $base ) );
 
 		if ( '' !== $previous ) {
 			$old[] = $previous;

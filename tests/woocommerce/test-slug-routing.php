@@ -199,6 +199,30 @@ class Slug_Routing_Test extends TestCase {
 	 *
 	 * @return void
 	 */
+	public function test_retired_slug_and_base_redirects_preserve_raw_query_once() {
+		Slug_Store::set_base( 'de', 'product', 'alt' );
+		Slug_Store::set_base( 'de', 'product', 'produkt' );
+		Slug_Store::set( 5, 'de', 'old' );
+		Slug_Store::set( 5, 'de', 'open-day-de' );
+		$routing = $this->routing();
+		$query = 'filter_color=rot%2Cblau&empty=&orderby=price&next=https%3A%2F%2Fevil.test%2F%3Fx%3D1';
+		$_SERVER['QUERY_STRING'] = $query;
+		$_GET = array( 'filter_color' => 'rot,blau', 'empty' => '', 'orderby' => 'price', 'next' => 'https://evil.test/?x=1' );
+
+		$this->request( $routing, 'de/produkt/old', array( 'product' => 'old' ) );
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/?' . $query, $routing->redirect_url() );
+		$this->request( $routing, 'de/alt/open-day-de', array( 'product' => 'open-day-de' ) );
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/?' . $query, $routing->redirect_url() );
+		$this->request( $routing, 'de/produkt/open-day-de', array( 'product' => 'open-day-de' ) );
+		$this->assertSame( '', $routing->redirect_url() );
+		$this->assertSame( 'rot,blau', $_GET['filter_color'] );
+
+		lmat_test_set( 'permalinks', array( 5 => 'https://example.test/prodotto/open-day/?orderby=default' ) );
+		$this->request( $routing, 'de/produkt/old', array( 'product' => 'old' ) );
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/?orderby=default&filter_color=rot%2Cblau&empty=&next=https%3A%2F%2Fevil.test%2F%3Fx%3D1', $routing->redirect_url() );
+		unset( $_SERVER['QUERY_STRING'] );
+	}
+
 	public function test_http_outcomes_are_executed() {
 		$routing = $this->routing();
 		$routing->init();
