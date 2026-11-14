@@ -534,6 +534,58 @@ class Slug_Routing_Test extends TestCase {
 	}
 
 	/**
+	 * WordPress's prefixed attachment rule can match a shared product before its product rule.
+	 *
+	 * @return void
+	 */
+	public function test_prefixed_product_matched_as_attachment_resolves_to_product() {
+		$routing = $this->routing();
+		$query_vars = $this->request(
+			$routing,
+			'de/prodotto/open-day-de',
+			array( 'attachment' => 'open-day-de', 'lmat_lang' => 'de' )
+		);
+
+		$this->assertSame( 'open-day', $query_vars['product'] );
+		$this->assertArrayHasKey( 'post_type', $query_vars );
+		$this->assertArrayHasKey( 'name', $query_vars );
+		$this->assertSame( 'product', $query_vars['post_type'] );
+		$this->assertSame( 'open-day', $query_vars['name'] );
+		$this->assertSame( 'de', $query_vars['lmat_lang'] );
+		$this->assertArrayNotHasKey( 'attachment', $query_vars );
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/', $routing->redirect_url() );
+	}
+
+	/**
+	 * The attachment rewrite must not hide canonical redirects or unknown-product 404s.
+	 *
+	 * @return void
+	 */
+	public function test_prefixed_product_attachment_match_keeps_redirect_and_404_rules() {
+		$routing = $this->routing();
+		$this->request( $routing, 'de/prodotto/open-day', array( 'attachment' => 'open-day', 'lmat_lang' => 'de' ) );
+		$this->assertSame( 'https://example.test/de/produkt/open-day-de/', $routing->redirect_url() );
+
+		$unknown = $this->routing();
+		$this->assertSame( array( 'error' => '404' ), $this->request( $unknown, 'de/prodotto/nope', array( 'attachment' => 'nope', 'lmat_lang' => 'de' ) ) );
+	}
+
+	/**
+	 * WordPress's prefixed attachment rule can also shadow a shared category archive.
+	 *
+	 * @return void
+	 */
+	public function test_prefixed_category_matched_as_attachment_resolves_to_term() {
+		lmat_test_set( 'permalink_structure', array( 'product_base' => '/prodotto', 'category_base' => 'categoria-prodotto' ) );
+		$routing = $this->routing();
+		$query_vars = $this->request( $routing, 'de/categoria-prodotto/parent-c', array( 'attachment' => 'parent-c', 'lmat_lang' => 'de' ) );
+
+		$this->assertSame( 'parent-c', $query_vars['product_cat'] );
+		$this->assertSame( 'de', $query_vars['lmat_lang'] );
+		$this->assertArrayNotHasKey( 'attachment', $query_vars );
+	}
+
+	/**
 	 * Rule 1: the canonical slug under the prefix 301s straight to the translated URL, which then
 	 * resolves without a further redirect.
 	 *

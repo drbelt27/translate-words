@@ -120,7 +120,23 @@ class Slug_Routing {
 		}
 
 		$query_vars = $this->recover_mixed_case_base( (array) $query_vars, $segments, $language );
-		$var        = $this->query_var( $query_vars );
+		$structure  = function_exists( 'wc_get_permalink_structure' ) ? wc_get_permalink_structure() : array();
+		foreach ( self::QUERY_VARS as $name => $base_type ) {
+			$base_key = 'product' === $name ? 'product_base' : $base_type . '_base';
+			$base     = isset( $structure[ $base_key ] ) ? trim( (string) $structure[ $base_key ], '/' ) : '';
+
+			if ( isset( $query_vars['attachment'] ) && '' !== $base && count( $segments ) === 3 && $segments[1] === $base && $segments[2] === $query_vars['attachment'] ) {
+				$query_vars[ $name ] = $query_vars['attachment'];
+				if ( 'product' === $name ) {
+					$query_vars['post_type'] = 'product';
+					$query_vars['name']      = $query_vars['attachment'];
+				}
+				unset( $query_vars['attachment'] );
+				break;
+			}
+		}
+
+		$var = $this->query_var( $query_vars );
 
 		if ( '' === $var ) {
 			return $this->map_attribute_query( $query_vars, $language );
