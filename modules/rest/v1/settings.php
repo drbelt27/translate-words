@@ -850,6 +850,7 @@ class Settings extends Abstract_Controller {
 				case 'rewrite':
 				case 'force_lang':
 				case 'hide_default':
+				case 'wc_shared_product_identity': // Adds or removes the translated-base rules.
 					delete_option( 'rewrite_rules' );
 					break;
 			

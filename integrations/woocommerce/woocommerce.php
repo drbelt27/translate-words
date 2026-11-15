@@ -114,6 +114,14 @@ class Linguator_WooCommerce {
 	protected $seo = null;
 
 	/**
+	 * Inbound translated URLs.
+	 *
+	 * @since 2.3.0
+	 * @var Slug_Routing|null
+	 */
+	protected $slug_routing = null;
+
+	/**
 	 * The admin-side entry panel for translated product text.
 	 *
 	 * @since 2.3.0
@@ -187,12 +195,22 @@ class Linguator_WooCommerce {
 		$this->term_translations = new Term_Translations( $this->repository, $this->gate, $this->frontend );
 		$this->term_translations->init();
 
-		$this->seo = new Seo( $this->repository, $this->gate, $this->frontend );
+		$slug_store         = new Slug_Store();
+		$slug_resolver      = new Slug_Resolver( $slug_store );
+		$this->slug_routing = new Slug_Routing( $slug_resolver, $slug_store );
+		$this->slug_routing->init();
+		$slug_links = new Slug_Links( $slug_resolver );
+		$slug_links->init();
+
+		$this->seo = new Seo( $this->repository, $this->gate, $this->frontend, $slug_links );
 		$this->seo->init();
+
+		( new Admin\Term_Slugs( $this->repository ) )->init(); // Releases slugs on every request; the screens are admin only.
 
 		if ( is_admin() ) {
 			$this->product_panel = new Admin\Product_Panel( $this->repository );
 			$this->product_panel->init();
+			( new Admin\Permalink_Bases() )->init();
 		}
 
 		// Same priority as the shop handler: each stands aside when another has already resolved a URL.
@@ -204,6 +222,9 @@ class Linguator_WooCommerce {
 		// integration advertises through the switcher and hreflang, and 301s it away. Cancel exactly that
 		// redirect; every other reason redirect_canonical() might fire is left alone.
 		add_filter( 'redirect_canonical', array( $this, 'keep_shared_object_url_from_redirecting' ), 10, 2 );
+
+		// Only a permanent delete frees a product's translated slugs: a trashed product keeps them so a restore cannot collide.
+		add_action( 'before_delete_post', array( $this, 'release_product_slugs' ), 10, 1 );
 	}
 
 	/**
@@ -286,13 +307,9 @@ class Linguator_WooCommerce {
 			return $url;
 		}
 
-		$permalink = get_permalink( $product_id );
+		$link = ( new Slug_Resolver( new Slug_Store() ) )->permalink( 'post', $product_id, $language->slug );
 
-		if ( ! is_string( $permalink ) || '' === $permalink ) {
-			return $url;
-		}
-
-		return $this->switch_language_in_url( $permalink, $language, $url );
+		return '' === $link ? $url : $link;
 	}
 
 	/**
@@ -314,23 +331,33 @@ class Linguator_WooCommerce {
 			return $url;
 		}
 
-		if ( ! function_exists( 'is_tax' ) || ! is_tax( Term_Translations::TAXONOMIES ) ) {
+		if ( ! function_exists( 'is_tax' ) || ! is_tax() ) {
 			return $url;
 		}
 
 		$term = get_queried_object();
 
-		if ( ! $term instanceof WP_Term ) {
+		if ( ! $term instanceof WP_Term || ! Slug_Links::is_shared_taxonomy( $term->taxonomy ) ) {
 			return $url;
 		}
 
-		$link = get_term_link( $term, $term->taxonomy );
+		$link = ( new Slug_Resolver( new Slug_Store() ) )->permalink( 'term', $term->term_id, $language->slug, $term->taxonomy );
 
-		if ( ! is_string( $link ) || '' === $link ) {
-			return $url;
+		return '' === $link ? $url : $link;
+	}
+
+	/**
+	 * Releases the translated slugs of a product that is being permanently deleted.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param int $post_id The post being deleted.
+	 * @return void
+	 */
+	public function release_product_slugs( $post_id ) {
+		if ( 'product' === get_post_type( $post_id ) ) {
+			Slug_Store::forget( (int) $post_id, Translation_Repository::TYPE_POST );
 		}
-
-		return $this->switch_language_in_url( $link, $language, $url );
 	}
 
 	/**
@@ -372,6 +399,10 @@ class Linguator_WooCommerce {
 			return $redirect_url;
 		}
 
+		if ( null !== $this->slug_routing && '' !== $this->slug_routing->redirect_url() ) {
+			return $this->slug_routing->redirect_url();
+		}
+
 		if ( ! $this->is_shared_object_request() ) {
 			return $redirect_url;
 		}
@@ -395,7 +426,9 @@ class Linguator_WooCommerce {
 			return true;
 		}
 
-		return function_exists( 'is_tax' ) && is_tax( Term_Translations::TAXONOMIES );
+		$term = function_exists( 'is_tax' ) && is_tax() ? get_queried_object() : null;
+
+		return $term instanceof WP_Term && Slug_Links::is_shared_taxonomy( $term->taxonomy );
 	}
 
 	/**

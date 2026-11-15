@@ -40,8 +40,10 @@ use WP_Term;
  * taxonomy archive — falls through untouched, because neither branch matches and the SEO plugin's own
  * value is returned as-is.
  *
- * Canonical URLs are not touched here: they are produced by the language and links layer. So is
- * hreflang, which the shared-object URL handlers restore.
+ * SEOPress's canonical and og:url tags go through Slug_Links so they carry the translated URL
+ * (`seopress_titles_canonical` in options-titles-metas.php, `seopress_social_og_url` in
+ * options-social.php; both receive the finished HTML tag). hreflang is restored by the shared-object
+ * URL handlers.
  *
  * @since 2.3.0
  */
@@ -80,6 +82,15 @@ class Seo {
 	protected $frontend;
 
 	/**
+	 * Translated crawler-facing URLs.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @var Slug_Links|null
+	 */
+	protected $links;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 2.3.0
@@ -87,11 +98,13 @@ class Seo {
 	 * @param Translation_Repository $repository Translation storage.
 	 * @param Context_Gate           $gate       The localization context gate.
 	 * @param Frontend               $frontend   Language helper.
+	 * @param Slug_Links|null        $links      Translated URLs; canonical and og:url are left alone without it.
 	 */
-	public function __construct( Translation_Repository $repository, Context_Gate $gate, Frontend $frontend ) {
+	public function __construct( Translation_Repository $repository, Context_Gate $gate, Frontend $frontend, ?Slug_Links $links = null ) {
 		$this->repository = $repository;
 		$this->gate       = $gate;
 		$this->frontend   = $frontend;
+		$this->links      = $links;
 	}
 
 	/**
@@ -110,6 +123,64 @@ class Seo {
 		add_filter( 'seopress_titles_desc', array( $this, 'description' ), 10, 1 );
 		add_filter( 'seopress_social_og_title', array( $this, 'og_title' ), 10, 1 );
 		add_filter( 'seopress_social_og_desc', array( $this, 'og_description' ), 10, 1 );
+		add_filter( 'seopress_titles_canonical', array( $this, 'canonical' ), 10, 1 );
+		add_filter( 'seopress_social_og_url', array( $this, 'og_url' ), 10, 1 );
+	}
+
+	/**
+	 * Points SEOPress's `<link rel="canonical">` at the translated URL.
+	 *
+	 * On shared products and terms this overrides a manual per-object SEOPress canonical, because that
+	 * field is shared across languages and would point every language at one URL.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $html The tag SEOPress computed.
+	 * @return string
+	 */
+	public function canonical( $html ) {
+		return $this->retarget( $html, 'href' );
+	}
+
+	/**
+	 * Points SEOPress's `og:url` at the translated URL.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $html The tag SEOPress computed.
+	 * @return string
+	 */
+	public function og_url( $html ) {
+		return $this->retarget( $html, 'content' );
+	}
+
+	/**
+	 * Replaces the URL held by an attribute of a SEOPress tag with the one from Slug_Links.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $html      The tag.
+	 * @param string $attribute Attribute holding the URL.
+	 * @return string
+	 */
+	protected function retarget( $html, $attribute ) {
+		if ( null === $this->links ) {
+			return $html;
+		}
+
+		$links = $this->links;
+
+		return preg_replace_callback(
+			'/(' . $attribute . '=")([^"]*)(")/',
+			function ( $match ) use ( $links ) {
+				$old = htmlspecialchars_decode( $match[2] );
+				$new = $links->canonical_url( $old );
+
+				return $old === $new ? $match[0] : $match[1] . htmlspecialchars( urldecode( $new ), ENT_QUOTES | ENT_SUBSTITUTE ) . $match[3];
+			},
+			(string) $html,
+			1
+		);
 	}
 
 	/**

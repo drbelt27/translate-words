@@ -27,6 +27,7 @@ function lmat_test_reset_state() {
 		'is_shop'             => false,
 		'is_front_page'       => false,
 		'is_product'          => false,
+		'is_paged'            => false,
 		'is_product_tax'      => false,
 		'queried_object_id'   => 0,
 		'queried_term'        => null,
@@ -40,6 +41,7 @@ function lmat_test_reset_state() {
 		'post_meta'           => array(),
 		'term_meta'           => array(),
 		'primed_posts'        => array(),
+		'post_prime_calls'    => 0,
 		'primed_terms'        => array(),
 		'is_admin'            => false,
 		'doing_ajax'          => false,
@@ -56,6 +58,20 @@ function lmat_test_reset_state() {
 		'post_types'          => array(),
 		'cart_items'          => array(),
 		'product_attributes'  => array(),
+		'cache'               => array(),
+		'post_names'          => array(),
+		'term_slugs'          => array(),
+		'taxonomies'          => array( 'product_cat', 'product_tag', 'product_brand', 'pa_color' ),
+		'pages'               => array(),
+		'post_statuses'       => array(),
+		'transients'          => array(),
+		'user_caps'           => array(),
+		'permalink_structure' => array(
+			'product_base'   => '/prodotto',
+			'category_base'  => 'categoria-prodotto',
+			'tag_base'       => 'tag-prodotto',
+			'attribute_base' => '',
+		),
 	);
 }
 
@@ -168,9 +184,9 @@ function apply_filters( $hook_name, $value ) {
  * @return void
  */
 function do_action( $hook_name ) {
-	$args = array_slice( func_get_args(), 1 );
-	array_unshift( $args, $hook_name, null );
-	call_user_func_array( 'apply_filters', $args );
+	$args  = array_slice( func_get_args(), 1 );
+	$value = array_shift( $args ); // The first action argument is the one a callback receives first, as in WordPress.
+	call_user_func_array( 'apply_filters', array_merge( array( $hook_name, $value ), $args ) );
 }
 
 /**
@@ -193,6 +209,18 @@ function has_filter( $hook_name, $callback = false ) {
 }
 
 /**
+ * Wraps a meta value the way get_post_meta() returns every key of an object: as a list of values.
+ *
+ * @since 2.3.0
+ *
+ * @param mixed $value Meta value.
+ * @return array
+ */
+function lmat_test_wrap( $value ) {
+	return array( $value );
+}
+
+/**
  * Reads one simulated meta value.
  *
  * @since 2.3.0
@@ -205,6 +233,10 @@ function has_filter( $hook_name, $callback = false ) {
  */
 function lmat_test_get_meta( $store, $id, $key, $single ) {
 	$meta = (array) lmat_test_get( $store, array() );
+
+	if ( '' === $key ) {
+		return array_map( 'lmat_test_wrap', isset( $meta[ (int) $id ] ) ? $meta[ (int) $id ] : array() );
+	}
 
 	if ( ! isset( $meta[ (int) $id ][ $key ] ) ) {
 		return $single ? '' : array();
@@ -332,6 +364,7 @@ function delete_term_meta( $id, $key ) {
  * @return true
  */
 function update_postmeta_cache( $ids ) {
+	lmat_test_set( 'post_prime_calls', lmat_test_get( 'post_prime_calls', 0 ) + 1 );
 	lmat_test_set( 'primed_posts', array_merge( (array) lmat_test_get( 'primed_posts', array() ), array_map( 'intval', (array) $ids ) ) );
 
 	return true;
@@ -631,6 +664,17 @@ function is_front_page() {
 }
 
 /**
+ * Simulates WordPress's is_paged().
+ *
+ * @since 2.3.0
+ *
+ * @return bool
+ */
+function is_paged() {
+	return (bool) lmat_test_get( 'is_paged', false );
+}
+
+/**
  * Simulates WordPress's get_permalink().
  *
  * @since 2.2.1
@@ -641,7 +685,7 @@ function is_front_page() {
 function get_permalink( $post_id = 0 ) {
 	$permalinks = (array) lmat_test_get( 'permalinks', array() );
 
-	return array_key_exists( (int) $post_id, $permalinks ) ? $permalinks[ (int) $post_id ] : false;
+	return array_key_exists( (int) $post_id, $permalinks ) ? apply_filters( 'post_type_link', $permalinks[ (int) $post_id ], new Lmat_Test_Post( $post_id ) ) : false;
 }
 
 /**
@@ -1001,6 +1045,54 @@ if ( ! getenv( 'LMAT_TEST_WITHOUT_WOOCOMMERCE' ) ) {
 	function wc_get_page_id( $page ) {
 		return 'shop' === $page ? (int) lmat_test_get( 'shop_page_id', -1 ) : -1;
 	}
+
+	/**
+	 * WooCommerce's WC_Query, reduced to the layered-nav read of WooCommerce 11.1: `filter_<attribute>`
+	 * values read from $_GET once, then cached in a private static property.
+	 *
+	 * @since 2.3.0
+	 */
+	class WC_Query {
+		/**
+		 * Chosen attributes, null until read.
+		 *
+		 * @var array|null
+		 */
+		private static $chosen_attributes;
+
+		/**
+		 * Same as WooCommerce.
+		 *
+		 * @return void
+		 */
+		public static function reset_chosen_attributes() {
+			self::$chosen_attributes = null;
+		}
+
+		/**
+		 * Same shape as WooCommerce: taxonomy => terms and query type.
+		 *
+		 * @return array
+		 */
+		public static function get_layered_nav_chosen_attributes() {
+			if ( ! is_array( self::$chosen_attributes ) ) {
+				self::$chosen_attributes = array();
+
+				foreach ( $_GET as $key => $value ) {
+					$taxonomy = 'pa_' . substr( $key, strlen( 'filter_' ) );
+
+					if ( 0 === strpos( $key, 'filter_' ) && is_string( $value ) && '' !== $value && taxonomy_exists( $taxonomy ) ) {
+						self::$chosen_attributes[ $taxonomy ] = array(
+							'terms'      => array_map( 'sanitize_title', explode( ',', $value ) ),
+							'query_type' => 'and',
+						);
+					}
+				}
+			}
+
+			return self::$chosen_attributes;
+		}
+	}
 }
 
 /**
@@ -1012,6 +1104,10 @@ if ( ! getenv( 'LMAT_TEST_WITHOUT_WOOCOMMERCE' ) ) {
  * @return int[]
  */
 function get_posts( $args = array() ) {
+	if ( isset( $args['name'] ) ) {
+		return array_map( 'intval', array_keys( (array) lmat_test_get( 'post_names', array() ), $args['name'], true ) );
+	}
+
 	return (array) lmat_test_get( 'product_ids', array() );
 }
 
@@ -1274,10 +1370,505 @@ class Lmat_Test_Order_Item extends Lmat_Test_Order {
 	}
 }
 
+/**
+ * Simulates WordPress's wp_cache_get().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key   Cache key.
+ * @param string $group Cache group.
+ * @return mixed False when missing.
+ */
+function wp_cache_get( $key, $group = '' ) {
+	$cache = (array) lmat_test_get( 'cache', array() );
+
+	return isset( $cache[ $group ][ $key ] ) ? $cache[ $group ][ $key ] : false;
+}
+
+/**
+ * Simulates WordPress's wp_cache_set().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key   Cache key.
+ * @param mixed  $value Value to cache.
+ * @param string $group Cache group.
+ * @return true
+ */
+function wp_cache_set( $key, $value, $group = '' ) {
+	$cache                    = (array) lmat_test_get( 'cache', array() );
+	$cache[ $group ][ $key ] = $value;
+	lmat_test_set( 'cache', $cache );
+
+	return true;
+}
+
+/**
+ * Simulates WordPress's wp_cache_delete().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key   Cache key.
+ * @param string $group Cache group.
+ * @return true
+ */
+function wp_cache_delete( $key, $group = '' ) {
+	$cache = (array) lmat_test_get( 'cache', array() );
+	unset( $cache[ $group ][ $key ] );
+	lmat_test_set( 'cache', $cache );
+
+	return true;
+}
+
+/**
+ * Simulates WordPress's wp_cache_add_non_persistent_groups(), recording the registered groups.
+ *
+ * @since 2.3.0
+ *
+ * @param string|string[] $groups Cache group or groups.
+ * @return void
+ */
+function wp_cache_add_non_persistent_groups( $groups ) {
+	lmat_test_set( 'non_persistent_groups', array_merge( (array) lmat_test_get( 'non_persistent_groups', array() ), (array) $groups ) );
+}
+
+/**
+ * Simulates WordPress's get_option().
+ *
+ * @since 2.3.0
+ *
+ * @param string $name          Option name.
+ * @param mixed  $default_value Value when the option is missing.
+ * @return mixed
+ */
+function get_option( $name, $default_value = false ) {
+	$options = (array) lmat_test_get( 'options', array() );
+
+	return array_key_exists( $name, $options ) ? $options[ $name ] : $default_value;
+}
+
+/**
+ * Simulates WordPress's update_option().
+ *
+ * @since 2.3.0
+ *
+ * @param string $name  Option name.
+ * @param mixed  $value Option value.
+ * @return true
+ */
+function update_option( $name, $value ) {
+	$options = (array) lmat_test_get( 'options', array() );
+	$exists  = array_key_exists( $name, $options );
+	$old     = $exists ? $options[ $name ] : false;
+
+	if ( $exists && $old === $value ) {
+		return false;
+	}
+
+	$options[ $name ] = $value;
+	lmat_test_set( 'options', $options );
+
+	// Like WordPress: add_option_{name} for a new option, update_option_{name} when the value changed.
+	if ( $exists ) {
+		do_action( 'update_option_' . $name, $old, $value, $name );
+	} else {
+		do_action( 'add_option_' . $name, $name, $value );
+	}
+
+	return true;
+}
+
+/** Minimal REST controller base for the settings route. */
+abstract class WP_REST_Controller {
+	protected function get_fields_for_response( $request ) {
+		return array();
+	}
+}
+
+/** Minimal REST server constants. */
+class WP_REST_Server {
+	const EDITABLE = 'POST, PUT, PATCH';
+}
+
+/** Minimal REST request carrying body parameters. */
+class Lmat_Test_REST_Request {
+	private $params;
+	public function __construct( $params ) {
+		$this->params = $params;
+	}
+	public function get_json_params() {
+		return array();
+	}
+	public function get_params() {
+		return $this->params;
+	}
+}
+
+/**
+ * Returns the schema's editable args (the stub schema has no readonly fields).
+ *
+ * @param array  $schema Schema.
+ * @param string $method Method.
+ * @return array
+ */
+function rest_get_endpoint_args_for_schema( $schema, $method = '' ) {
+	return $schema;
+}
+
+/** @param string $field Field. @param array $fields Fields. @return bool */
+function rest_is_field_included( $field, $fields ) {
+	return true;
+}
+
+/** @param mixed $response Response. @return mixed */
+function rest_ensure_response( $response ) {
+	return $response;
+}
+
+/**
+ * Records deleted options in the 'deleted_options' state.
+ *
+ * @param string $name Option name.
+ * @return true
+ */
+function delete_option( $name ) {
+	$deleted   = (array) lmat_test_get( 'deleted_options', array() );
+	$deleted[] = $name;
+	lmat_test_set( 'deleted_options', $deleted );
+
+	return true;
+}
+
+/** @return false */
+function wp_next_scheduled( $hook ) {
+	return false;
+}
+
+/** @return true */
+function wp_schedule_event( $timestamp, $recurrence, $hook ) {
+	return true;
+}
+
+/** @return int */
+function wp_clear_scheduled_hook( $hook ) {
+	return 0;
+}
+
+/** @return false Not chosen. */
+function linguator_get_cpfm_opt_in_choice() {
+	return false;
+}
+
+/** Captures a redirect without terminating the isolated test process. */
+class Lmat_Test_Redirect extends RuntimeException {}
+
+/** Minimal main query for the router's hard 404 outcome. */
+class Lmat_Test_Query {
+	public $is_404 = false;
+	public function set_404() {
+		$this->is_404 = true;
+	}
+}
+
+/**
+ * Records a safe redirect and stops the handler like WordPress's following exit.
+ *
+ * @param string $url Target URL.
+ * @param int $status HTTP status.
+ * @return void
+ */
+function wp_safe_redirect( $url, $status = 302 ) {
+	lmat_test_set( 'safe_redirect', array( $url, $status ) );
+	throw new Lmat_Test_Redirect();
+}
+
+/**
+ * Records the HTTP status.
+ *
+ * @param int $status HTTP status.
+ * @return void
+ */
+function status_header( $status ) {
+	lmat_test_set( 'status_header', $status );
+}
+
+/** Sends no-cache headers (no output in the isolated harness). @return void */
+function nocache_headers() {}
+
+/**
+ * Simulates WordPress's home_url().
+ *
+ * @since 2.3.0
+ *
+ * @param string $path Path relative to the home URL.
+ * @return string
+ */
+function home_url( $path = '' ) {
+	return 'https://example.test/' . ltrim( (string) $path, '/' );
+}
+
+/**
+ * Simulates WordPress's trailingslashit().
+ *
+ * @since 2.3.0
+ *
+ * @param string $value Value to append a slash to.
+ * @return string
+ */
+function trailingslashit( $value ) {
+	return rtrim( (string) $value, '/\\' ) . '/';
+}
+
+/**
+ * Simulates WordPress's user_trailingslashit() for a permalink structure ending with a slash.
+ *
+ * @since 2.3.0
+ *
+ * @param string $value Value to append a slash to.
+ * @return string
+ */
+function user_trailingslashit( $value ) {
+	return trailingslashit( $value );
+}
+
+/**
+ * Simulates WordPress's flush_rewrite_rules() by counting the calls in the 'flushes' state.
+ *
+ * @since 2.3.0
+ *
+ * @param bool $hard Whether to update .htaccess, unused by the stub.
+ * @return void
+ */
+function flush_rewrite_rules( $hard = true ) {
+	lmat_test_set( 'flushes', (int) lmat_test_get( 'flushes', 0 ) + 1 );
+}
+
+/**
+ * Simulates WordPress's maybe_unserialize(): the simulated meta store keeps arrays as they are.
+ *
+ * @since 2.3.0
+ *
+ * @param mixed $value Stored value.
+ * @return mixed
+ */
+function maybe_unserialize( $value ) {
+	return $value;
+}
+
+/**
+ * Simulates WooCommerce's wc_get_permalink_structure(). Defined in both modes, like get_posts().
+ *
+ * @since 2.3.0
+ *
+ * @return array
+ */
+function wc_get_permalink_structure() {
+	return (array) lmat_test_get( 'permalink_structure', array() );
+}
+
+/**
+ * Simulates WordPress's get_post_status(): 'publish' unless the 'post_statuses' state says otherwise.
+ *
+ * @since 2.3.0
+ *
+ * @param int $post Post ID.
+ * @return string
+ */
+function get_post_status( $post ) {
+	$statuses = (array) lmat_test_get( 'post_statuses', array() );
+
+	return isset( $statuses[ (int) $post ] ) ? $statuses[ (int) $post ] : 'publish';
+}
+
+/**
+ * Simulates WordPress's get_post_field() for 'post_name', over the 'post_names' state.
+ *
+ * @since 2.3.0
+ *
+ * @param string $field Field name.
+ * @param int    $post  Post ID.
+ * @return string
+ */
+function get_post_field( $field, $post ) {
+	$names = (array) lmat_test_get( 'post_names', array() );
+
+	return 'post_name' === $field && isset( $names[ (int) $post ] ) ? $names[ (int) $post ] : '';
+}
+
+/**
+ * Simulates WordPress's get_term_field() over the simulated terms.
+ *
+ * @since 2.3.0
+ *
+ * @param string $field    Field name.
+ * @param int    $term     Term ID.
+ * @param string $taxonomy Taxonomy, unused by the stub.
+ * @return mixed
+ */
+function get_term_field( $field, $term, $taxonomy = '' ) {
+	$terms = (array) lmat_test_get( 'term_slugs', array() );
+
+	return isset( $terms[ (int) $term ][ $field ] ) ? $terms[ (int) $term ][ $field ] : ( 'parent' === $field ? 0 : '' );
+}
+
+/**
+ * Simulates WordPress's get_terms() for the slug lookups of the slug store.
+ *
+ * @since 2.3.0
+ *
+ * @param array $args Supports taxonomy, slug and parent.
+ * @return int[] Matching term IDs.
+ */
+function get_terms( $args = array() ) {
+	$ids = array();
+	lmat_test_set( 'get_terms_calls', (int) lmat_test_get( 'get_terms_calls', 0 ) + 1 );
+
+	foreach ( (array) lmat_test_get( 'term_slugs', array() ) as $id => $term ) {
+		if ( $term['taxonomy'] === $args['taxonomy'] && $term['slug'] === $args['slug']
+			&& ( ! isset( $args['parent'] ) || (int) $term['parent'] === (int) $args['parent'] ) ) {
+			$ids[] = (int) $id;
+		}
+	}
+
+	return $ids;
+}
+
+/**
+ * Simulates WordPress's taxonomy_exists() from the 'taxonomies' state.
+ *
+ * @since 2.3.0
+ *
+ * @param string $taxonomy Taxonomy name.
+ * @return bool
+ */
+function taxonomy_exists( $taxonomy ) {
+	return in_array( $taxonomy, (array) lmat_test_get( 'taxonomies', array() ), true );
+}
+
+/**
+ * Simulates WordPress's get_taxonomies() in its 'names' shape.
+ *
+ * @since 2.3.0
+ *
+ * @param array  $args   Unused by the stub.
+ * @param string $output Unused by the stub.
+ * @return string[]
+ */
+function get_taxonomies( $args = array(), $output = 'names' ) {
+	return (array) lmat_test_get( 'taxonomies', array() );
+}
+
+/**
+ * Simulates WordPress's get_page_by_path() from the 'pages' state (path => true).
+ *
+ * @since 2.3.0
+ *
+ * @param string $path Page path.
+ * @return object|null
+ */
+function get_page_by_path( $path ) {
+	$pages = (array) lmat_test_get( 'pages', array() );
+
+	return isset( $pages[ $path ] ) ? new Lmat_Test_Post( 1 ) : null;
+}
+
+/**
+ * Simulates WordPress's add_options_page(), returning the hook suffix.
+ *
+ * @since 2.3.0
+ *
+ * @param string   $page_title Unused by the stub.
+ * @param string   $menu_title Unused by the stub.
+ * @param string   $capability Unused by the stub.
+ * @param string   $menu_slug  Menu slug.
+ * @param callable $callback   Unused by the stub.
+ * @return string
+ */
+function add_options_page( $page_title, $menu_title, $capability, $menu_slug, $callback = '' ) {
+	return 'settings_page_' . $menu_slug;
+}
+
+/**
+ * Simulates WordPress's submit_button().
+ *
+ * @since 2.3.0
+ *
+ * @return void
+ */
+function submit_button() {
+	echo '<input type="submit" class="button button-primary" value="Save Changes" />';
+}
+
+if ( ! defined( 'ARRAY_A' ) ) {
+	define( 'ARRAY_A', 'ARRAY_A' );
+}
+
+/**
+ * Minimal $wpdb stand-in: answers the slug store's meta lookups from the simulated meta stores.
+ *
+ * @since 2.3.0
+ */
+class Lmat_Test_Wpdb {
+	/**
+	 * Post meta table name.
+	 *
+	 * @var string
+	 */
+	public $postmeta = 'wp_postmeta';
+
+	/**
+	 * Term meta table name.
+	 *
+	 * @var string
+	 */
+	public $termmeta = 'wp_termmeta';
+
+	/**
+	 * Inlines a single %s placeholder.
+	 *
+	 * @param string $query Query with one %s.
+	 * @param string $value Value.
+	 * @return string
+	 */
+	public function prepare( $query, $value ) {
+		return str_replace( '%s', "'" . $value . "'", $query );
+	}
+
+	/**
+	 * Returns id/meta_value rows for a "FROM <table> WHERE meta_key = '<key>'" query.
+	 *
+	 * @param string $query  Prepared query.
+	 * @param string $output Ignored.
+	 * @return array[]
+	 */
+	public function get_results( $query, $output = ARRAY_A ) {
+		if ( lmat_test_get( 'wpdb_fail', false ) ) {
+			return null;
+		}
+
+		preg_match( "/FROM (\w+) WHERE meta_key = '([^']*)'/", $query, $m );
+
+		$rows = array();
+		foreach ( (array) lmat_test_get( $m[1] === $this->termmeta ? 'term_meta' : 'post_meta', array() ) as $id => $meta ) {
+			if ( isset( $meta[ $m[2] ] ) ) {
+				$rows[] = array( 'id' => $id, 'meta_value' => $meta[ $m[2] ] );
+			}
+		}
+
+		return $rows;
+	}
+}
+
+$GLOBALS['wpdb'] = new Lmat_Test_Wpdb();
+
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/context-gate.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/woocommerce.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/shared-mode.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translation-repository.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-store.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-resolver.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-routing.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/slug-links.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/translated-object-types.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/frontend.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/attribute-translations.php';
@@ -1287,6 +1878,8 @@ require_once dirname( __DIR__ ) . '/integrations/woocommerce/orders.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/term-translations.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/seo.php';
 require_once dirname( __DIR__ ) . '/integrations/woocommerce/admin/product-panel.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/admin/term-slugs.php';
+require_once dirname( __DIR__ ) . '/integrations/woocommerce/admin/permalink-bases.php';
 
 /**
  * Returns the queried object ID for the current request.
@@ -1345,7 +1938,7 @@ function get_term_link( $term, $taxonomy = '' ) {
 	$links = (array) lmat_test_get( 'term_links', array() );
 	$id    = is_object( $term ) ? (int) $term->term_id : (int) $term;
 
-	return isset( $links[ $id ] ) ? $links[ $id ] : false;
+	return isset( $links[ $id ] ) ? apply_filters( 'term_link', $links[ $id ], $term, $taxonomy ) : false;
 }
 
 /**
@@ -1406,4 +1999,113 @@ class WP_Term {
 		$this->name        = $name;
 		$this->description = $description;
 	}
+}
+
+/**
+ * Simulates WordPress's wp_verify_nonce(): only the literal 'valid-nonce' verifies.
+ *
+ * @since 2.3.0
+ *
+ * @param string $nonce  Nonce value.
+ * @param string $action Nonce action.
+ * @return int|false
+ */
+function wp_verify_nonce( $nonce, $action = -1 ) {
+	return 'valid-nonce' === $nonce ? 1 : false;
+}
+
+/**
+ * Simulates WordPress's current_user_can(): only the capabilities listed in 'user_caps' are held.
+ *
+ * @since 2.3.0
+ *
+ * @param string $capability Capability name.
+ * @return bool
+ */
+function current_user_can( $capability ) {
+	return in_array( $capability, (array) lmat_test_get( 'user_caps', array() ), true );
+}
+
+/**
+ * Simulates WordPress's get_current_user_id().
+ *
+ * @since 2.3.0
+ *
+ * @return int
+ */
+function get_current_user_id() {
+	return 1;
+}
+
+/**
+ * Simulates WordPress's set_transient().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key        Transient name.
+ * @param mixed  $value      Value.
+ * @param int    $expiration Unused by the stub.
+ * @return bool
+ */
+function set_transient( $key, $value, $expiration = 0 ) {
+	$transients         = (array) lmat_test_get( 'transients', array() );
+	$transients[ $key ] = $value;
+	lmat_test_set( 'transients', $transients );
+
+	return true;
+}
+
+/**
+ * Simulates WordPress's get_transient().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key Transient name.
+ * @return mixed False when not set.
+ */
+function get_transient( $key ) {
+	$transients = (array) lmat_test_get( 'transients', array() );
+
+	return isset( $transients[ $key ] ) ? $transients[ $key ] : false;
+}
+
+/**
+ * Simulates WordPress's delete_transient().
+ *
+ * @since 2.3.0
+ *
+ * @param string $key Transient name.
+ * @return bool
+ */
+function delete_transient( $key ) {
+	$transients = (array) lmat_test_get( 'transients', array() );
+	unset( $transients[ $key ] );
+	lmat_test_set( 'transients', $transients );
+
+	return true;
+}
+
+/**
+ * Simulates WordPress's wp_nonce_field(), printing the nonce input with the valid test nonce.
+ *
+ * @since 2.3.0
+ *
+ * @param string $action Nonce action.
+ * @param string $name   Field name.
+ * @return void
+ */
+function wp_nonce_field( $action = -1, $name = '_wpnonce' ) {
+	echo '<input type="hidden" name="' . esc_attr( $name ) . '" value="valid-nonce" />';
+}
+
+/**
+ * Simulates WordPress's esc_textarea().
+ *
+ * @since 2.3.0
+ *
+ * @param string $text Text to escape.
+ * @return string
+ */
+function esc_textarea( $text ) {
+	return htmlspecialchars( (string) $text, ENT_QUOTES );
 }

@@ -121,6 +121,7 @@ class Canonical_Redirect_Test extends TestCase {
 	 */
 	public function test_shared_product_taxonomy_archive_under_a_language_prefix_is_not_redirected() {
 		lmat_test_set( 'is_product_tax', 'product_cat' );
+		lmat_test_set( 'queried_term', new WP_Term( 9, 'product_cat' ) );
 
 		$result = $this->integration->keep_shared_object_url_from_redirecting(
 			'https://example.test/categoria-prodotto/abbigliamento/',
@@ -128,6 +129,18 @@ class Canonical_Redirect_Test extends TestCase {
 		);
 
 		$this->assertFalse( $result );
+	}
+
+	/**
+	 * A shared attribute archive also keeps its language prefix instead of being sent to the default URL.
+	 *
+	 * @return void
+	 */
+	public function test_shared_attribute_archive_under_a_language_prefix_is_not_redirected() {
+		lmat_test_set( 'is_product_tax', 'pa_color' );
+		lmat_test_set( 'queried_term', new WP_Term( 20, 'pa_color' ) );
+
+		$this->assertFalse( $this->integration->keep_shared_object_url_from_redirecting( 'https://example.test/color/red/', 'https://example.test/de/color/rot/' ) );
 	}
 
 	/**
@@ -164,5 +177,39 @@ class Canonical_Redirect_Test extends TestCase {
 		);
 
 		$this->assertSame( 'https://example.test/prodotto/tassa-di-socio/', $result );
+	}
+
+	/**
+	 * Phase 1b: a translated URL still has core's redirect cancelled, but a retired canonical URL
+	 * gets the slug router's 301 to the translated URL instead of being cancelled or sent home.
+	 *
+	 * @return void
+	 */
+	public function test_retired_canonical_url_gets_the_translated_301_and_translated_url_stays() {
+		lmat_test_set( 'is_product', true );
+		lmat_test_set( 'post_names', array( 5 => 'tassa-di-socio' ) );
+		lmat_test_set( 'permalinks', array( 5 => 'https://example.test/prodotto/tassa-di-socio/' ) );
+		\Linguator\Integrations\woocommerce\Slug_Store::set( 5, 'de', 'mitgliedsbeitrag' );
+		$this->integration->init();
+
+		$GLOBALS['wp'] = (object) array( 'request' => 'de/prodotto/mitgliedsbeitrag' );
+		apply_filters( 'request', array( 'product' => 'mitgliedsbeitrag' ) );
+		$translated = $this->integration->keep_shared_object_url_from_redirecting(
+			'https://example.test/prodotto/tassa-di-socio/',
+			'https://example.test/de/prodotto/mitgliedsbeitrag/'
+		);
+
+		$this->integration = new Linguator_WooCommerce();
+		$this->integration->init();
+		$GLOBALS['wp'] = (object) array( 'request' => 'de/prodotto/tassa-di-socio' );
+		apply_filters( 'request', array( 'product' => 'tassa-di-socio' ) );
+		$retired = $this->integration->keep_shared_object_url_from_redirecting(
+			'https://example.test/prodotto/tassa-di-socio/',
+			'https://example.test/de/prodotto/tassa-di-socio/'
+		);
+		unset( $GLOBALS['wp'] );
+
+		$this->assertFalse( $translated );
+		$this->assertSame( 'https://example.test/de/prodotto/mitgliedsbeitrag/', $retired );
 	}
 }

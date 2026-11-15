@@ -7,6 +7,7 @@
 
 use PHPUnit\Framework\TestCase;
 use Linguator\Integrations\woocommerce\Linguator_WooCommerce;
+use Linguator\Integrations\woocommerce\Slug_Store;
 
 class Coordinator_Test extends TestCase {
 
@@ -239,5 +240,86 @@ class Coordinator_Test extends TestCase {
 		$integration->init();
 
 		$this->assertTrue( has_filter( 'add_meta_boxes' ) );
+		$this->assertTrue( has_filter( 'admin_menu' ) );
+		$this->assertTrue( has_filter( 'edited_term' ) );
+	}
+
+	/**
+	 * Term slugs are released on every request, but the screens exist only in the admin: a term is
+	 * also deleted over REST.
+	 *
+	 * @return void
+	 */
+	public function test_shared_mode_releases_term_slugs_outside_the_admin_without_the_screens() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		$this->assertTrue( has_filter( 'delete_term' ) );
+		$this->assertFalse( has_filter( 'edited_term' ) );
+		$this->assertFalse( has_filter( 'admin_menu' ) );
+	}
+
+	/**
+	 * Boots shared mode with product 5 holding a German slug.
+	 *
+	 * @return void
+	 */
+	protected function boot_with_slugged_product() {
+		lmat_test_set( 'options', array( 'wc_shared_product_identity' => true ) );
+		lmat_test_set( 'post_types', array( 5 => 'product', 7 => 'page' ) );
+
+		$integration = new Linguator_WooCommerce();
+		$integration->init();
+
+		Slug_Store::set( 5, 'de', 'beitrag' );
+		Slug_Store::set( 7, 'de', 'seite' );
+	}
+
+	/**
+	 * Permanently deleting a product releases its translated slugs, so another product can take them.
+	 *
+	 * @return void
+	 */
+	public function test_permanent_delete_releases_the_product_slug() {
+		$this->boot_with_slugged_product();
+
+		$this->assertInstanceOf( WP_Error::class, Slug_Store::set( 6, 'de', 'beitrag' ) );
+
+		do_action( 'before_delete_post', 5 );
+
+		$this->assertSame( '', Slug_Store::get( 5, 'de' ) );
+		$this->assertTrue( Slug_Store::set( 6, 'de', 'beitrag' ) );
+	}
+
+	/**
+	 * Only products release slugs: another post type is left alone.
+	 *
+	 * @return void
+	 */
+	public function test_deleting_another_post_type_releases_nothing() {
+		$this->boot_with_slugged_product();
+
+		do_action( 'before_delete_post', 7 );
+
+		$this->assertSame( 'seite', Slug_Store::get( 7, 'de' ) );
+	}
+
+	/**
+	 * Trashing or unpublishing keeps the slug reserved, so a restore cannot collide.
+	 *
+	 * @return void
+	 */
+	public function test_trashing_a_product_keeps_its_slug_reserved() {
+		$this->boot_with_slugged_product();
+
+		do_action( 'wp_trash_post', 5 );
+		do_action( 'trashed_post', 5 );
+		do_action( 'transition_post_status', 'trash', 'publish', new Lmat_Test_Post( 5 ) );
+		do_action( 'transition_post_status', 'draft', 'publish', new Lmat_Test_Post( 5 ) );
+
+		$this->assertSame( 'beitrag', Slug_Store::get( 5, 'de' ) );
+		$this->assertInstanceOf( WP_Error::class, Slug_Store::set( 6, 'de', 'beitrag' ) );
 	}
 }

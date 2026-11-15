@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Linguator\Integrations\woocommerce\Admin\Product_Panel;
 use Linguator\Integrations\woocommerce\Attribute_Translations;
 use Linguator\Integrations\woocommerce\Seo;
+use Linguator\Integrations\woocommerce\Slug_Store;
 use Linguator\Integrations\woocommerce\Translation_Repository;
 
 class Product_Panel_Test extends TestCase {
@@ -29,6 +30,9 @@ class Product_Panel_Test extends TestCase {
 		parent::setUp();
 		lmat_test_reset_state();
 		$this->panel = new Product_Panel( new Translation_Repository() );
+		lmat_test_set( 'products', array( 42 => new Lmat_Test_Product( 42 ) ) );
+		lmat_test_set( 'user_caps', array( 'edit_post' ) );
+		$_POST = array();
 	}
 
 	/**
@@ -38,6 +42,7 @@ class Product_Panel_Test extends TestCase {
 	 */
 	protected function tearDown(): void {
 		unset( $_GET['lmat_wc_language'] );
+		$_POST = array();
 		parent::tearDown();
 	}
 
@@ -144,6 +149,215 @@ class Product_Panel_Test extends TestCase {
 		$collected = $this->panel->collect( array( 'name' => 'Ok', 'sku' => 'HACKED' ), $descriptors );
 
 		$this->assertSame( array( 'name' ), array_keys( $collected ) );
+	}
+
+	/**
+	 * Simulates the panel being submitted for product 42 in German.
+	 *
+	 * @param string|null $slug     The slug field, null to leave it out of the payload.
+	 * @param string      $name     The translated name.
+	 * @param int         $revision The revision the form was rendered with.
+	 * @param string      $language The language being saved.
+	 * @return void
+	 */
+	protected function submit( $slug, $name = '', $revision = 0, $language = 'de' ) {
+		$_POST = array(
+			Product_Panel::NONCE_FIELD => 'valid-nonce',
+			'lmat_wc_language'         => $language,
+			'lmat_wc_revision'         => (string) $revision,
+			'lmat_wc_fields'           => '' === $name ? array() : array( 'name' => $name ),
+		);
+
+		if ( null !== $slug ) {
+			$_POST['lmat_wc_slug'] = $slug;
+		}
+
+		$this->panel->save( 42 );
+	}
+
+	/**
+	 * An entered slug is sanitized and stored through the slug store.
+	 *
+	 * @return void
+	 */
+	public function test_panel_saves_an_entered_slug_through_the_store() {
+		$this->submit( ' Mein Beitrag! ' );
+
+		$this->assertSame( 'mein-beitrag', Slug_Store::get( 42, 'de' ) );
+		$this->assertSame( 42, Slug_Store::find( 'mein-beitrag', 'de' ) );
+	}
+
+	/**
+	 * An empty slug with a translated name is derived from the name.
+	 *
+	 * @return void
+	 */
+	public function test_empty_slug_is_derived_from_the_translated_name() {
+		$this->submit( '', 'Mitgliedsbeitrag' );
+
+		$this->assertSame( 'mitgliedsbeitrag', Slug_Store::get( 42, 'de' ) );
+	}
+
+	/**
+	 * A derived slug is made unique rather than rejected.
+	 *
+	 * @return void
+	 */
+	public function test_derived_slug_is_made_unique() {
+		Slug_Store::set( 43, 'de', 'mitgliedsbeitrag' );
+
+		$this->submit( '', 'Mitgliedsbeitrag' );
+
+		$this->assertSame( 'mitgliedsbeitrag-2', Slug_Store::get( 42, 'de' ) );
+		$this->assertFalse( get_transient( 'lmat_wc_panel_error_1' ) );
+	}
+
+	/**
+	 * No name and no slug leaves the product without a translated slug, and without an error.
+	 *
+	 * @return void
+	 */
+	public function test_empty_slug_without_a_name_stays_empty() {
+		$this->submit( '' );
+
+		$this->assertSame( '', Slug_Store::get( 42, 'de' ) );
+		$this->assertFalse( get_transient( 'lmat_wc_panel_error_1' ) );
+	}
+
+	/**
+	 * A later name change never moves an existing slug, whether the form echoes it back or leaves
+	 * the field out.
+	 *
+	 * @return void
+	 */
+	public function test_existing_slug_is_never_overwritten_by_a_later_name_change() {
+		$this->submit( '', 'Mitgliedsbeitrag' );
+		$this->submit( 'mitgliedsbeitrag', 'Neuer Name', 1 );
+		$this->assertSame( 'mitgliedsbeitrag', Slug_Store::get( 42, 'de' ) );
+
+		$this->submit( null, 'Noch ein Name', 2 );
+		$this->assertSame( 'mitgliedsbeitrag', Slug_Store::get( 42, 'de' ) );
+		$this->assertFalse( get_transient( 'lmat_wc_panel_error_1' ) );
+	}
+
+	/**
+	 * A slug another product holds in the language is refused visibly and the old one is kept.
+	 *
+	 * @return void
+	 */
+	public function test_conflicting_slug_shows_an_error_and_keeps_the_old_one() {
+		Slug_Store::set( 42, 'de', 'mine' );
+		Slug_Store::set( 43, 'de', 'taken' );
+
+		$this->submit( 'taken' );
+
+		$this->assertSame( 'mine', Slug_Store::get( 42, 'de' ) );
+		$this->assertSame( 43, Slug_Store::find( 'taken', 'de' ) );
+		$this->assertNotEmpty( get_transient( 'lmat_wc_panel_error_1' ) );
+	}
+
+	/**
+	 * Empty, reserved and numeric-only slugs are refused visibly and the old one is kept.
+	 *
+	 * @return void
+	 */
+	public function test_invalid_slugs_show_an_error_and_keep_the_old_one() {
+		Slug_Store::set( 42, 'de', 'mine' );
+
+		foreach ( array( '', '!!!', 'feed', '2024' ) as $slug ) {
+			delete_transient( 'lmat_wc_panel_error_1' );
+			$this->submit( $slug );
+
+			$this->assertSame( 'mine', Slug_Store::get( 42, 'de' ), $slug );
+			$this->assertNotEmpty( get_transient( 'lmat_wc_panel_error_1' ), $slug );
+		}
+	}
+
+	/**
+	 * The slug field is written only after the nonce and the edit capability both pass.
+	 *
+	 * @return void
+	 */
+	public function test_save_requires_nonce_and_edit_post_capability() {
+		$_POST = array(
+			'lmat_wc_language' => 'de',
+			'lmat_wc_slug'     => 'mein-beitrag',
+		);
+		$this->panel->save( 42 );
+		$this->assertSame( '', Slug_Store::get( 42, 'de' ), 'no nonce' );
+
+		$_POST[ Product_Panel::NONCE_FIELD ] = 'forged';
+		$this->panel->save( 42 );
+		$this->assertSame( '', Slug_Store::get( 42, 'de' ), 'bad nonce' );
+
+		lmat_test_set( 'user_caps', array( 'edit_posts' ) );
+		$this->submit( 'mein-beitrag' );
+		$this->assertSame( '', Slug_Store::get( 42, 'de' ), 'no edit_post capability' );
+
+		lmat_test_set( 'user_caps', array( 'edit_post' ) );
+		$this->submit( 'mein-beitrag' );
+		$this->assertSame( 'mein-beitrag', Slug_Store::get( 42, 'de' ) );
+	}
+
+	/**
+	 * The error is shown once and then cleared.
+	 *
+	 * @return void
+	 */
+	public function test_panel_error_is_returned_once() {
+		set_transient( 'lmat_wc_panel_error_1', 'Taken.', 60 );
+
+		$this->assertSame( 'Taken.', $this->panel->pull_error() );
+		$this->assertSame( '', $this->panel->pull_error() );
+	}
+
+	/**
+	 * The slug input shows the stored slug. A language-switcher loop variable once shadowed the
+	 * slug and rendered the last language code, which every real save then posted back.
+	 *
+	 * @return void
+	 */
+	public function test_rendered_slug_input_holds_the_stored_slug_not_a_language_code() {
+		Slug_Store::set( 42, 'de', 'beitrag' );
+		$_GET['lmat_wc_language'] = 'de';
+
+		ob_start();
+		$this->panel->render( new Lmat_Test_Post( 42 ) );
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( 'name="lmat_wc_slug" value="beitrag"', $html );
+	}
+
+	/**
+	 * A slug is only saved for a configured, non-default language: the default language always
+	 * uses the canonical slug.
+	 *
+	 * @return void
+	 */
+	public function test_slug_is_not_saved_for_an_unknown_or_the_default_language() {
+		foreach ( array( 'xx', 'it' ) as $language ) {
+			$this->submit( 'mein-beitrag', '', 0, $language );
+
+			$this->assertSame( '', Slug_Store::get( 42, $language ), $language );
+			$this->assertSame( array(), array_filter( array_keys( (array) get_post_meta( 42 ) ), function ( $key ) {
+				return 0 === strpos( $key, Slug_Store::META_PREFIX );
+			} ), $language );
+		}
+	}
+
+	/**
+	 * A failed text save (here a stale revision) skips the slug write, so a stale form cannot
+	 * half-apply or revert a newer slug.
+	 *
+	 * @return void
+	 */
+	public function test_failed_text_save_skips_the_slug_write() {
+		Slug_Store::set( 42, 'de', 'neu' );
+
+		$this->submit( 'alt', 'Name', 5 ); // The stored revision is 0.
+
+		$this->assertSame( 'neu', Slug_Store::get( 42, 'de' ) );
+		$this->assertNotEmpty( get_transient( 'lmat_wc_panel_error_1' ) );
 	}
 
 	/**

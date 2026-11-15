@@ -10,6 +10,8 @@
  * @var object $repository      Translation storage.
  * @var object $post            The product post.
  * @var array  $language_switch Language slug mapped to array( 'url', 'current' ).
+ * @var string $slug            The translated slug in this language, empty when none.
+ * @var string $error           The error of the last save, empty when none.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -23,19 +25,32 @@ wp_nonce_field( Product_Panel::NONCE_ACTION, Product_Panel::NONCE_FIELD );
 <input type="hidden" name="lmat_wc_language" value="<?php echo esc_attr( $language ); ?>" />
 <input type="hidden" name="lmat_wc_revision" value="<?php echo esc_attr( (string) $record['revision'] ); ?>" />
 
+<?php if ( '' !== $error ) : ?>
+	<div class="notice notice-error inline"><p><?php echo esc_html( $error ); ?></p></div>
+<?php endif; ?>
+
 <p>
 	<strong><?php echo esc_html__( 'Language', 'translate-words' ); ?>:</strong>
-	<?php foreach ( (array) $language_switch as $slug => $link ) : ?>
+	<?php foreach ( (array) $language_switch as $lang_slug => $link ) : ?>
 		<?php if ( ! empty( $link['current'] ) ) : ?>
-			<span aria-current="page"><?php echo esc_html( $slug ); ?></span>
+			<span aria-current="page"><?php echo esc_html( $lang_slug ); ?></span>
 		<?php else : ?>
-			<a href="<?php echo esc_url( $link['url'] ); ?>"><?php echo esc_html( $slug ); ?></a>
+			<a href="<?php echo esc_url( $link['url'] ); ?>"><?php echo esc_html( $lang_slug ); ?></a>
 		<?php endif; ?>
 	<?php endforeach; ?>
 </p>
 
 <table class="widefat striped">
 	<tbody>
+	<tr>
+		<th scope="row">
+			<label for="lmat-wc-slug"><?php echo esc_html__( 'Slug', 'translate-words' ); ?></label>
+		</th>
+		<td>
+			<input type="text" id="lmat-wc-slug" name="lmat_wc_slug" value="<?php echo esc_attr( $slug ); ?>" class="large-text" />
+			<p class="description"><?php echo esc_html__( 'The last part of this product\'s URL in this language. Left empty, it is created from the translated name when you save and never changed afterwards.', 'translate-words' ); ?></p>
+		</td>
+	</tr>
 	<?php foreach ( $descriptors as $descriptor ) : ?>
 		<?php
 		$status = $repository->get_status( (int) $post->ID, $language, $descriptor['key'], $descriptor['source'] );

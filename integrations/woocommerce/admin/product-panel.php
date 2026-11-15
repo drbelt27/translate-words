@@ -13,6 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use Linguator\Integrations\woocommerce\Attribute_Translations;
 use Linguator\Integrations\woocommerce\Seo;
+use Linguator\Integrations\woocommerce\Slug_Store;
 use Linguator\Integrations\woocommerce\Translation_Repository;
 
 /**
@@ -241,6 +242,8 @@ class Product_Panel {
 		$record          = $this->repository->get_record( (int) $post->ID, $language );
 		$repository      = $this->repository;
 		$language_switch = $this->language_switch_links( $post, $language );
+		$slug            = Slug_Store::get( (int) $post->ID, $language );
+		$error           = $this->pull_error();
 
 		include __DIR__ . '/views/product-panel.php';
 	}
@@ -300,16 +303,92 @@ class Product_Panel {
 			: array();
 
 		$fields = $this->collect( $raw, $this->descriptors( $product ) );
+		$errors = array();
 
-		if ( empty( $fields ) ) {
-			return;
+		if ( ! empty( $fields ) ) {
+			$result = $this->repository->save( $post_id, $language, $fields, $revision );
+
+			if ( is_wp_error( $result ) ) {
+				$errors[] = $result->get_error_message();
+			}
 		}
 
-		$result = $this->repository->save( $post_id, $language, $fields, $revision );
+		// The slug is not a repository field: it lives in Slug_Store, which enforces uniqueness.
+		// A failed text save (e.g. a stale revision) skips it, so a stale form cannot revert a newer slug.
+		if ( empty( $errors ) && isset( $_POST['lmat_wc_slug'] ) && $this->is_slug_language( $language ) ) {
+			$result = $this->save_slug( $post_id, $language, sanitize_title( wp_unslash( $_POST['lmat_wc_slug'] ) ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize_title() is the sanitizer.
 
-		if ( is_wp_error( $result ) ) {
-			set_transient( 'lmat_wc_panel_error_' . get_current_user_id(), $result->get_error_message(), 60 );
+			if ( is_wp_error( $result ) ) {
+				$errors[] = $result->get_error_message();
+			}
 		}
+
+		if ( ! empty( $errors ) ) {
+			set_transient( self::error_key(), implode( ' ', $errors ), 60 );
+		}
+	}
+
+	/**
+	 * Tells whether a language may carry a translated slug: configured, and not the default
+	 * language, which always uses the canonical slug.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $language Language slug.
+	 * @return bool
+	 */
+	protected function is_slug_language( $language ) {
+		return Slug_Store::is_slug_language( $language );
+	}
+
+	/**
+	 * Stores the submitted slug, or derives one from the translated name when there is none yet.
+	 *
+	 * An existing slug is never replaced by a derived one, so a later name change cannot move a URL.
+	 * Clearing a stored slug is refused by Slug_Store::set() like any other invalid slug.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param int    $post_id  The product ID.
+	 * @param string $language Language slug.
+	 * @param string $slug     The sanitized submitted slug.
+	 * @return true|\WP_Error
+	 */
+	protected function save_slug( $post_id, $language, $slug ) {
+		if ( '' !== $slug || '' !== Slug_Store::get( $post_id, $language ) ) {
+			return Slug_Store::set( $post_id, $language, $slug );
+		}
+
+		$record = $this->repository->get_record( $post_id, $language );
+		$name   = isset( $record['fields']['name']['value'] ) ? (string) $record['fields']['name']['value'] : '';
+		$slug   = '' === $name ? '' : Slug_Store::derive( $name, $post_id, $language );
+
+		return '' === $slug ? true : Slug_Store::set( $post_id, $language, $slug );
+	}
+
+	/**
+	 * Returns the save error of the current user and clears it, so it is shown once.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return string Empty when there is none.
+	 */
+	public function pull_error() {
+		$error = (string) get_transient( self::error_key() );
+		delete_transient( self::error_key() );
+
+		return $error;
+	}
+
+	/**
+	 * Returns the transient name that carries a save error to the next render.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @return string
+	 */
+	protected static function error_key() {
+		return 'lmat_wc_panel_error_' . get_current_user_id();
 	}
 
 	/**
