@@ -5,7 +5,7 @@ Tags: automatic translation, google translate,elementor translation, multilingua
 Requires at least: 6.8
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 2.3.0
+Stable tag: 2.3.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -197,6 +197,9 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 **Legacy Version:** If you need the previous implementation of Translate Words, you can download the legacy code that was removed in version 2.1.10 from our [GitHub repository](https://github.com/CoolPluginsTeam/translate-words/tree/translate-words-legacy).
 
 == Changelog ==
+
+= Version 2.3.1 | 15 November 2026 =
+* Fixed: Installable archive built from the merged fork main, preserving the 2.2.1 changelog and excluding project notes.
 
 = Version 2.3.0 | 15 November 2026 =
 * Added: Optional shared WooCommerce product identity (off by default). One product, category, tag or attribute term is translated per language instead of being duplicated.
