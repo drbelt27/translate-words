@@ -1,0 +1,280 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linguator WooCommerce Translation Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#30B230',
+                        'primary-hover': '#2FB22F',
+                        canvas: '#F3F4F6',
+                        border: '#e5e7eb',
+                        surface: '#ffffff',
+                    },
+                    boxShadow: {
+                        'content-wrapper': '0px 1px 1px 0px #0000000F, 0px 1px 2px 0px #0000001A',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .lmat-styles {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+        }
+        
+        /* Custom scrollbar for textareas */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: #d1d5db; 
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af; 
+        }
+    </style>
+</head>
+<body>
+    <div class="lmat-styles min-h-screen bg-canvas flex items-start justify-center p-4 md:p-8" data-sd-id="1">
+        
+        <!-- Embedded Panel Container -->
+        <div class="w-full max-w-[1200px] bg-surface rounded-lg shadow-content-wrapper border border-border" data-sd-id="2">
+            
+            <!-- Panel Header -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 border-b border-border gap-4" data-sd-id="3">
+                <div data-sd-id="4">
+                    <h2 class="text-xl font-semibold text-gray-800 m-0 leading-tight" data-sd-id="5">Product Translations</h2>
+                    <p class="text-sm text-gray-500 mt-1 mb-0 flex items-center gap-1" data-sd-id="6">
+                        <iconify-icon icon="lucide:info" class="text-gray-400"></iconify-icon>
+                        Shared product ID: 100 ? Variable product
+                    </p>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto" data-sd-id="7">
+                    <div class="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded border border-gray-200" data-sd-id="8">
+                        <span class="font-medium" data-sd-id="9">Source:</span>
+                        <div class="flex items-center gap-1" data-sd-id="10">
+                            <span class="w-4 h-3 bg-gray-300 rounded-sm inline-block overflow-hidden relative border border-gray-400" data-sd-id="11">
+                                <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzIDIiPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjIiIGZpbGw9IiMwMDkyNDYiLz48cmVjdCB4PSIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIyIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMiIgd2lkdGg9IjEiIGhlaWdodD0iMiIgZmlsbD0iI2NlMmIzNyIvPjwvc3ZnPg==')] bg-cover bg-center" data-sd-id="12"></div>
+                            </span>
+                            Italian
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-2" data-sd-id="13">
+                        <iconify-icon icon="lucide:arrow-right" class="text-gray-400"></iconify-icon>
+                        <select class="text-sm border border-border rounded px-3 py-1.5 bg-white text-gray-800 shadow-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary min-w-[140px] cursor-pointer" data-sd-id="14" aria-label="Target language">
+                            <option value="de" selected="" data-sd-id="15">🇩🇪 German</option>
+                            <option value="fr" data-sd-id="16">🇫🇷 French</option>
+                            <option value="es" data-sd-id="17">🇪🇸 Spanish</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel Toolbar -->
+            <div class="px-6 py-4 border-b border-border bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4" data-sd-id="18">
+                <div class="flex gap-1 bg-white p-1 rounded-md border border-gray-200 shadow-sm w-full sm:w-auto" data-sd-id="19" role="tablist" aria-label="Translation sections">
+                    <button class="px-4 py-1.5 text-sm font-medium rounded bg-gray-100 text-gray-800 shadow-sm" data-sd-id="20" id="product-content-tab" type="button" role="tab" aria-selected="true" aria-controls="product-content-panel">Product Content</button>
+                    <button class="px-4 py-1.5 text-sm font-medium rounded text-gray-600 hover:bg-gray-50 transition-colors" data-sd-id="21" id="variations-tab" type="button" role="tab" aria-selected="false" aria-controls="variations-panel">Variations (2)</button>
+                </div>
+                
+                <div class="flex items-center gap-3 w-full sm:w-auto justify-end" data-sd-id="22">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200" data-sd-id="23" id="translation-status" role="status">
+                        <span class="w-1.5 h-1.5 rounded-full bg-yellow-500" data-sd-id="24"></span>
+                        Needs Review
+                    </span>
+                    <a href="#translation-preview" class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1 transition-colors" id="preview-link" data-sd-id="25">
+                        <iconify-icon icon="lucide:external-link"></iconify-icon>
+                        Preview
+                    </a>
+                </div>
+            </div>
+
+            <!-- Main Content Area - Grid Layout -->
+            <div class="p-6" data-sd-id="26" id="product-content-panel" role="tabpanel" aria-labelledby="product-content-tab">
+                <!-- Translation Grid Header -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4 hidden md:grid" data-sd-id="27">
+                    <div class="text-sm font-semibold text-gray-700 uppercase tracking-wider" data-sd-id="28">Source (Italian)</div>
+                    <div class="text-sm font-semibold text-gray-700 uppercase tracking-wider flex justify-between" data-sd-id="29">
+                        Translation (German)
+                        <button class="text-primary hover:text-primary-hover flex items-center gap-1 text-xs font-medium transition-colors" id="ai-translate-all" data-sd-id="30">
+                            <iconify-icon icon="lucide:sparkles" class="text-sm"></iconify-icon>
+                            Translate All with AI
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Field: Product Name -->
+                <div class="mb-8" data-sd-id="31">
+                    <div class="mb-2 md:hidden" data-sd-id="32">
+                        <h3 class="text-sm font-medium text-gray-800" data-sd-id="33">Product Name</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start" data-sd-id="34">
+                        <!-- Source -->
+                        <div class="bg-gray-50 p-3 rounded border border-gray-200" data-sd-id="35">
+                            <label class="block text-xs font-medium text-gray-500 mb-1 md:hidden" data-sd-id="36">Source (Italian)</label>
+                            <p class="text-sm text-gray-700 m-0" data-sd-id="37">Maglietta in Cotone Premium</p>
+                        </div>
+                        
+                        <!-- Translation -->
+                        <div class="relative group" data-sd-id="38">
+                            <label class="block text-xs font-medium text-gray-500 mb-1 mt-3 md:hidden" data-sd-id="39">Translation (German)</label>
+                            <input type="text" value="Premium Baumwoll-T-Shirt" class="w-full text-sm border border-gray-300 rounded px-3 py-2 bg-white text-gray-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm" placeholder="Enter translation..." data-sd-id="40" aria-label="Translated product name">
+                            <button class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity" title="Translate with AI" id="ai-translate-title" data-sd-id="41">
+                                <iconify-icon icon="lucide:sparkles"></iconify-icon>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Field: Short Description -->
+                <div class="mb-8" data-sd-id="42">
+                    <div class="mb-2" data-sd-id="43">
+                        <h3 class="text-sm font-medium text-gray-800" data-sd-id="44">Short Description</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start" data-sd-id="45">
+                        <!-- Source -->
+                        <div class="bg-gray-50 p-3 rounded border border-gray-200 min-h-[100px]" data-sd-id="46">
+                            <p class="text-sm text-gray-700 m-0 leading-relaxed" data-sd-id="47">Una maglietta essenziale per tutti i giorni, realizzata in 100% cotone biologico. Vestibilità comoda, traspirante e perfetta per ogni stagione.</p>
+                        </div>
+                        
+                        <!-- Translation with TinyMCE-like toolbar -->
+                        <div class="border border-gray-300 rounded bg-white shadow-sm overflow-hidden flex flex-col focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-shadow" data-sd-id="48">
+                            <!-- Toolbar -->
+                            <div class="flex items-center gap-1 border-b border-gray-200 bg-gray-50 p-1" data-sd-id="49">
+                                <button class="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors" data-sd-id="50"><iconify-icon icon="lucide:bold" class="text-sm"></iconify-icon></button>
+                                <button class="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors" data-sd-id="51"><iconify-icon icon="lucide:italic" class="text-sm"></iconify-icon></button>
+                                <div class="w-px h-4 bg-gray-300 mx-1" data-sd-id="52"></div>
+                                <button class="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors" data-sd-id="53"><iconify-icon icon="lucide:link" class="text-sm"></iconify-icon></button>
+                                <div class="w-px h-4 bg-gray-300 mx-1" data-sd-id="54"></div>
+                                <button class="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors ml-auto text-primary hover:text-primary-hover flex items-center gap-1 text-xs font-medium" data-sd-id="55"><iconify-icon icon="lucide:sparkles" class="text-sm"></iconify-icon> AI</button>
+                            </div>
+                            <textarea class="w-full text-sm p-3 border-none focus:outline-none focus:ring-0 min-h-[100px] resize-y text-gray-800" data-sd-id="56" aria-label="Translated short description">Ein unverzichtbares Alltags-T-Shirt aus 100% Bio-Baumwolle. Bequeme Passform, atmungsaktiv und perfekt für jede Jahreszeit.</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Field: Long Description -->
+                <div class="mb-4" data-sd-id="57">
+                    <div class="mb-2" data-sd-id="58">
+                        <h3 class="text-sm font-medium text-gray-800" data-sd-id="59">Long Description</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start" data-sd-id="60">
+                        <!-- Source -->
+                        <div class="bg-gray-50 p-3 rounded border border-gray-200 min-h-[200px]" data-sd-id="61">
+                            <p class="text-sm text-gray-700 m-0 leading-relaxed mb-4" data-sd-id="62">Scopri il comfort definitivo con la nostra Maglietta in Cotone Premium. Progettata per durare nel tempo, questa t-shirt mantiene la sua forma lavaggio dopo lavaggio.</p>
+                            <ul class="text-sm text-gray-700 list-disc pl-5 m-0 space-y-1" data-sd-id="63">
+                                <li data-sd-id="64">100% cotone pettinato ringspun</li>
+                                <li data-sd-id="65">Peso del tessuto: 142 g/m²</li>
+                                <li data-sd-id="66">Tessuto pre-ristretto</li>
+                                <li data-sd-id="67">Costruzione con cuciture laterali</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Translation with TinyMCE-like toolbar -->
+                        <div class="border border-yellow-400 rounded bg-white shadow-sm overflow-hidden flex flex-col focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-shadow relative" data-sd-id="68">
+                            <!-- Needs Review Indicator -->
+                            <div class="absolute top-0 right-0 w-3 h-3 bg-yellow-400 rounded-bl-lg" data-sd-id="69"></div>
+                            
+                            <!-- Toolbar -->
+                            <div class="flex items-center gap-1 border-b border-gray-200 bg-gray-50 p-1" data-sd-id="70">
+                                <button class="p-1.5 text-gray-800 bg-gray-200 rounded transition-colors" data-sd-id="71"><iconify-icon icon="lucide:bold" class="text-sm"></iconify-icon></button>
+                                <button class="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors" data-sd-id="72"><iconify-icon icon="lucide:italic" class="text-sm"></iconify-icon></button>
+                                <button class="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors" data-sd-id="73"><iconify-icon icon="lucide:list" class="text-sm"></iconify-icon></button>
+                                <div class="w-px h-4 bg-gray-300 mx-1" data-sd-id="74"></div>
+                                <button class="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors" data-sd-id="75"><iconify-icon icon="lucide:link" class="text-sm"></iconify-icon></button>
+                                <div class="w-px h-4 bg-gray-300 mx-1" data-sd-id="76"></div>
+                                <button class="p-1.5 text-gray-600 hover:bg-gray-200 rounded transition-colors ml-auto text-primary hover:text-primary-hover flex items-center gap-1 text-xs font-medium" data-sd-id="77"><iconify-icon icon="lucide:sparkles" class="text-sm"></iconify-icon> AI</button>
+                            </div>
+                            <textarea class="w-full text-sm p-3 border-none focus:outline-none focus:ring-0 min-h-[200px] resize-y text-gray-800" data-sd-id="78" aria-label="Translated long description">Entdecken Sie den ultimativen Komfort mit unserem Premium Baumwoll-T-Shirt. Entworfen, um lange zu halten, behält dieses T-Shirt seine Form Wäsche für Wäsche.
+
+- 100% gekämmte ringgesponnene Baumwolle
+- Stoffgewicht: 142 g/m²
+- Vorbehandelter Stoff
+- Seitennaht-Konstruktion</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <section id="variations-panel" role="tabpanel" aria-labelledby="variations-tab" class="p-6" hidden><p class="text-sm text-gray-500 mb-4">Translate descriptions and displayed attribute names. Product options, stock and prices stay shared.</p><details class="border border-gray-200 rounded bg-white mb-3" open>
+<summary class="cursor-pointer p-4 text-sm font-medium text-gray-800">Variation #101 ? Rosso / Piccola<span class="ml-3 text-xs text-gray-500">Same ID in every language</span></summary>
+<div class="p-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="bg-gray-50 rounded p-3 text-sm text-gray-700"><p class="font-medium mb-2">Source (Italian)</p><p>Rosso / Piccola</p><p class="mt-2">Maglietta in cotone, variante rosso / piccola.</p></div>
+<div class="space-y-3"><label class="block text-sm font-medium text-gray-700">Attribute display labels<input class="block w-full border border-gray-300 rounded p-2 mt-1 font-normal" value="Rot / Klein" aria-label="Variation 101 attribute display labels"></label><label class="block text-sm font-medium text-gray-700">Description<textarea class="block w-full border border-gray-300 rounded p-2 mt-1 font-normal" aria-label="Variation 101 description">Rotes T-Shirt in kleiner Gr??e.</textarea></label></div>
+</div></details><details class="border border-gray-200 rounded bg-white mb-3" >
+<summary class="cursor-pointer p-4 text-sm font-medium text-gray-800">Variation #102 ? Blu / Media<span class="ml-3 text-xs text-gray-500">Same ID in every language</span></summary>
+<div class="p-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="bg-gray-50 rounded p-3 text-sm text-gray-700"><p class="font-medium mb-2">Source (Italian)</p><p>Blu / Media</p><p class="mt-2">Maglietta in cotone, variante blu / media.</p></div>
+<div class="space-y-3"><label class="block text-sm font-medium text-gray-700">Attribute display labels<input class="block w-full border border-gray-300 rounded p-2 mt-1 font-normal" value="Blau / Mittel" aria-label="Variation 102 attribute display labels"></label><label class="block text-sm font-medium text-gray-700">Description<textarea class="block w-full border border-gray-300 rounded p-2 mt-1 font-normal" aria-label="Variation 102 description">Blaues T-Shirt in mittlerer Gr??e.</textarea></label></div>
+</div></details></section><p id="prototype-feedback" role="status" aria-live="polite" class="px-6 pb-3 text-sm text-gray-600" hidden></p>
+<!-- Panel Footer Actions -->
+            <div class="px-6 py-4 bg-gray-50 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 rounded-b-lg" data-sd-id="79">
+                <div class="flex items-center gap-2 text-sm text-gray-500" data-sd-id="80">
+                    <iconify-icon icon="lucide:check-circle" class="text-gray-400"></iconify-icon>
+                    Design preview: changes are not sent to WordPress
+                </div>
+                
+                <div class="flex gap-3 w-full sm:w-auto" data-sd-id="81">
+                    <button class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors flex-1 sm:flex-none flex justify-center items-center gap-2" id="btn-cancel" data-sd-id="82">
+                        Discard Changes
+                    </button>
+                    <button class="px-6 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-hover border border-transparent rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors flex-1 sm:flex-none flex justify-center items-center gap-2" id="btn-save" data-sd-id="83">
+                        Save Translation
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<script>
+(() => {
+  const product = document.getElementById('product-content-panel');
+  const variations = document.getElementById('variations-panel');
+  const tabs = [document.getElementById('product-content-tab'), document.getElementById('variations-tab')];
+  const feedback = document.getElementById('prototype-feedback');
+  const status = document.getElementById('translation-status');
+  let dirty = false;
+  const fields = [...document.querySelectorAll('input, textarea')];
+  let saved = fields.map(field => field.value);
+  const message = text => { feedback.hidden = false; feedback.textContent = text; };
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => {
+      product.hidden = index !== 0;
+      variations.hidden = index !== 1;
+      tabs.forEach((item, i) => { item.setAttribute('aria-selected', String(i === index)); item.classList.toggle('bg-gray-100', i === index); });
+    });
+    tab.addEventListener('keydown', event => {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = tabs[1 - index]; next.focus(); next.click(); }
+    });
+  });
+  fields.forEach(field => field.addEventListener('input', () => { dirty = true; status.textContent = 'Unsaved changes'; }));
+  document.getElementById('btn-save').addEventListener('click', () => {
+    saved = fields.map(field => field.value); dirty = false; status.textContent = 'Saved in preview'; message('Preview only. The plugin and product data have not been changed.');
+  });
+  document.getElementById('btn-cancel').addEventListener('click', () => { fields.forEach((field, i) => { field.value = saved[i]; }); dirty = false; status.textContent = 'Needs review'; message('Unsaved preview changes discarded.'); });
+  document.getElementById('ai-translate-all').addEventListener('click', () => { message('This preview does not call an AI provider. The implementation will use your existing Linguator provider configuration.'); });
+  document.getElementById('preview-link').addEventListener('click', event => { event.preventDefault(); message('Storefront preview will open the same product in the selected language after implementation.'); });
+  const language = document.querySelector('select');
+  language.addEventListener('change', () => { language.value = 'de'; message(dirty ? 'Save or discard your changes before switching language. This draft demonstrates German.' : 'This draft demonstrates German. Other configured languages will use the same panel.'); });
+  document.querySelectorAll('button').forEach(button => {
+    if (!button.getAttribute('aria-label') && !button.textContent.trim()) {
+      const icon = button.querySelector('iconify-icon');
+      if (icon) button.setAttribute('aria-label', icon.getAttribute('icon').replace('lucide:', ''));
+    }
+  });
+})();
+</script>
+</body></html>
