@@ -36,6 +36,9 @@ webpack.config.js
 wp-cli.local.yml
 yarn.lock
 tests
+docs
+.superdesign
+AGENTS.md
 node_modules
 *.sql
 *.tar.gz
