@@ -101,6 +101,11 @@ class Linguator_Integrations {
 	/**
 	 * @var mixed
 	 */
+	public $woocommerce;
+
+	/**
+	 * @var mixed
+	 */
 	public $rankmath;
 
 	/**

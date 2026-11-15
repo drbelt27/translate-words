@@ -14,6 +14,7 @@ return array(
 	'no-category-base',
 	'rankmath-seo',
 	'twenty-seventeen',
+	'woocommerce',
 	'wpbakery',
 	'wp-importer',
 	'wp-offload-media',

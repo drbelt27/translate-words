@@ -26,6 +26,8 @@ class Registry {
 		Business\Browser::class,
 		// Media.
 		Business\Media_Support::class,
+		// WooCommerce.
+		Business\Wc_Shared_Product_Identity::class,
 		// Usage Data Sharing.
 		Business\Feedback_Data::class,
 		Business\Language_Switcher_Options::class,
